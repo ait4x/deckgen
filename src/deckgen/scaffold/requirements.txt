@@ -1,0 +1,2 @@
+# Pinned by tag so a rebuild months from now produces the same deck.
+deckgen @ git+https://github.com/ait4x/deckgen@v0.1.0

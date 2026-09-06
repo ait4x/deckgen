@@ -1,0 +1,35 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "deckgen"
+version = "0.1.0"
+description = "One slide spec, four outputs: reveal.js deck, PDF, ait4x PowerPoint with live ClassPoint activities, and png previews."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "Giovanni Lion", email = "giovanni.lion@polyu.edu.hk" }]
+keywords = ["powerpoint", "pptx", "reveal.js", "slides", "classpoint", "teaching"]
+
+dependencies = [
+    "python-pptx>=1.0",
+    "Pillow>=10",
+    "markdown>=3.5",
+    "python-docx>=1.1",
+]
+
+[project.scripts]
+deckgen = "deckgen.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/ait4x/deckgen"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/deckgen"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/deckgen/fonts" = "deckgen/fonts"
+"src/deckgen/assets" = "deckgen/assets"
+"src/deckgen/js" = "deckgen/js"
+"src/deckgen/scaffold" = "deckgen/scaffold"

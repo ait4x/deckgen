@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.DS_Store
+
+# build outputs: rebuilt by `deckgen build`, published or kept by the workflows
+_site/
+export/
+deck/assets/generated/
+*.docx
+node_modules/
+package-lock.json
+package.json
+
+# student data never goes in the repository
+classpoint/*.csv
+ids.csv
+roster/

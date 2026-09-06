@@ -1,0 +1,32 @@
+# This repo, as deckgen sees it. Paths are conventional: deck/, deck/assets/,
+# syllabus/, lessons/, site/ — and the git-ignored outputs _site/ and export/.
+
+[course]
+code   = "SD0000"
+name   = "Course Name"
+year   = "2026/27"
+school = "PolyU School of Design"
+# footer   = "SD0000 · SHORT NAME"     # default: "<code> · <name>" upper-cased
+# artifact = "sd0000-powerpoints"      # default: "<code>-powerpoints"
+decks  = ["week01"]
+
+# The nav bar on the generated document pages (the wordmark is prepended).
+[[nav]]
+label = "SD0000"
+href  = "index.html"
+
+[[nav]]
+label = "Week 1 slides"
+href  = "week01/"
+
+[[nav]]
+label = "Syllabus"
+href  = "syllabus.html"
+
+# Markdown that reaches the public site. Anything in syllabus/ or lessons/ that is
+# NOT listed here still gets a .docx and an html copy, but only in export/docs/.
+# Lesson plans belong in that second group.
+[[publish]]
+src   = "SD0000-syllabus-2026.md"
+out   = "syllabus.html"
+title = "SD0000 · Syllabus 2026/27"

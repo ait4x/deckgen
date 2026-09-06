@@ -1,0 +1,272 @@
+/* ============================================================
+   ait4x Design System — Colors & Type
+   Rooted in PolyU School of Design brand guidelines.
+   ait4x.org = AI Tools for X. A masterclass on AI for media & design.
+   ============================================================ */
+
+/* ---------- Fonts ----------
+   Primary typeface: Inter (Google Fonts), variable axis 100–900 + italics.
+   Chosen as a free, web-ready stand-in for Helvetica Now while we wait
+   on proper Helvetica Now cuts. Inter is a neo-grotesque designed for
+   on-screen use and pairs cleanly with the PolyU Design visual system.
+
+   Technical / caption voice: JetBrains Mono.
+
+   If genuine Helvetica Now files arrive later, drop them into /fonts and
+   add an @font-face for "Helvetica Now" above the var declarations —
+   the stacks will pick it up automatically.
+*/
+@import url("https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:wght@400;500;700&display=swap");
+
+:root {
+  /* ===== TYPE STACKS ===== */
+  --font-display: "Inter", "Helvetica Now", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-text:    "Inter", "Helvetica Now", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono:    "JetBrains Mono", "Menlo", "Consolas", monospace;
+
+  /* ===== PRIMARY PALETTE (PolyU Design 60/30/5/5) ===== */
+  --c-white:     #FFFFFF;   /* 60% — page ground */
+  --c-ink:       #000B1C;   /* 30% — Pantone Black 6, the wordmark color */
+  --c-gray:      #BBBCB9;   /* 5%  — Pantone Cool Gray 4 */
+  --c-teal:      #64C2C3;   /* 5%  — Pantone 325, the only "warm" primary */
+
+  /* ===== INK / SURFACE SEMANTIC ===== */
+  --fg-1: var(--c-ink);                /* primary text */
+  --fg-2: #2A323D;                     /* secondary text */
+  --fg-3: #5C6470;                     /* tertiary / meta */
+  --fg-4: var(--c-gray);               /* disabled / hairlines on white */
+  --fg-inv: var(--c-white);            /* text on dark */
+
+  --bg-1: var(--c-white);              /* page */
+  --bg-2: #F4F4F2;                     /* card / panel */
+  --bg-3: #E8E8E5;                     /* sunken / hover */
+  --bg-ink: var(--c-ink);              /* hero / inverted */
+
+  --line: #E1E1DE;                     /* hairlines */
+  --line-strong: #1F2832;
+
+  /* ===== SECONDARY COLOR MATRIX (PolyU Design — 7 rows × 10 cols) =====
+     A = darkest, G = palest. Use as accents, sticker color, swatches,
+     editorial color blocks. ait4x leans hard into this for "color flair." */
+
+  /* Row A — deep / inky */
+  --A1:#4F5559; --A2:#00544C; --A3:#003C54; --A4:#001F40; --A5:#622852;
+  --A6:#7C2B3E; --A7:#692B20; --A8:#763716; --A9:#6D5714; --A10:#516320;
+
+  /* Row B — saturated mid (the "loud" row) */
+  --B1:#BBBCB9; --B2:#64C2C3; --B3:#00A5E1; --B4:#146AB5; --B5:#943890;
+  --B6:#E94D7F; --B7:#E42519; --B8:#ED6D24; --B9:#F6AD00; --B10:#6FBA2C;
+
+  /* Row C — friendly / saturated-light */
+  --C1:#C7C7C8; --C2:#9FCED0; --C3:#7BB6E3; --C4:#6685BF; --C5:#A167A1;
+  --C6:#DF7F99; --C7:#D86348; --C8:#E38E5D; --C9:#F0BD60; --C10:#A2C465;
+
+  /* Row D — pastel mid */
+  --D1:#CFCECD; --D2:#B9DBDC; --D3:#A2C8EA; --D4:#8FA2D0; --D5:#B68EBB;
+  --D6:#E7A3B4; --D7:#E18D70; --D8:#EBAC83; --D9:#F4CE89; --D10:#BCD38D;
+
+  /* Row E — softer pastel */
+  --E1:#D9D8D7; --E2:#D3E7E8; --E3:#C3DBF2; --E4:#B5C0E0; --E5:#CDB5D4;
+  --E6:#EFC4CF; --E7:#ECB69E; --E8:#F2C9AC; --E9:#F8DEB1; --E10:#D4E2B5;
+
+  /* Row F — washes / tint */
+  --F1:#D9D8D7; --F2:#E9F3F4; --F3:#E2EDF9; --F4:#DADFF0; --F5:#E5DAEB;
+  --F6:#F7E3E8; --F7:#F6DCCF; --F8:#F9E5D6; --F9:#FCEFD9; --F10:#EAF1DC;
+
+  /* Row G — near-white tints */
+  --G1:#D9D8D7; --G2:#7FC0C3; --G3:#F0F6FC; --G4:#EDEFF8; --G5:#F2ECF5;
+  --G6:#FBF1F4; --G7:#FAEDE6; --G8:#FCF2EA; --G9:#FDF7EC; --G10:#F4F8EE;
+
+  /* ===== ait4x ACCENT SHORTHANDS =====
+     Sub-brand picks a small "loud row" working set. These map to common
+     UI roles so prototypes can pull one variable and stay on-brand. */
+  --accent:           var(--c-teal);   /* primary action / link */
+  --accent-deep:      var(--A2);       /* deep teal — pressed / heading lift */
+  --accent-warm:      var(--B8);       /* orange — "X" accent, the X in ait4x */
+  --accent-hot:       var(--B6);       /* pink — editorial pop */
+  --accent-yellow:    var(--B9);       /* highlight / sticker */
+  --accent-violet:    var(--B5);       /* secondary accent */
+  --accent-green:     var(--B10);      /* live / new badge */
+
+  /* ===== SEMANTIC ===== */
+  --success: var(--B10);
+  --warning: var(--B9);
+  --danger:  var(--B7);
+  --info:    var(--B3);
+
+  /* ===== SPACING (4px base) ===== */
+  --sp-1:  4px;
+  --sp-2:  8px;
+  --sp-3:  12px;
+  --sp-4:  16px;
+  --sp-5:  24px;
+  --sp-6:  32px;
+  --sp-7:  48px;
+  --sp-8:  64px;
+  --sp-9:  96px;
+  --sp-10:128px;
+
+  /* ===== RADII =====
+     The brand reads as confident & geometric — radii are restrained.
+     0 for cards/blocks; pill for tags/sticker; small for inputs. */
+  --r-0:   0;
+  --r-xs:  2px;
+  --r-sm:  4px;
+  --r-md:  8px;
+  --r-lg:  16px;
+  --r-pill: 999px;
+
+  /* ===== ELEVATION =====
+     The system is mostly flat. Shadows are crisp and short — not soft. */
+  --shadow-0: none;
+  --shadow-1: 0 1px 0 rgba(0, 11, 28, 0.06);
+  --shadow-2: 0 2px 0 rgba(0, 11, 28, 0.12);
+  --shadow-3: 0 6px 24px -8px rgba(0, 11, 28, 0.18);
+  --shadow-card: 0 1px 0 var(--line), 0 0 0 1px var(--line);
+  --shadow-focus: 0 0 0 3px rgba(100, 194, 195, 0.45);
+
+  /* ===== MOTION ===== */
+  --ease-out: cubic-bezier(.2,.7,.2,1);
+  --ease-in-out: cubic-bezier(.6,.0,.4,1);
+  --dur-fast: 120ms;
+  --dur-med:  220ms;
+  --dur-slow: 420ms;
+
+  /* ===== LAYOUT ===== */
+  --max-w-text: 68ch;
+  --max-w-page: 1280px;
+  --gutter: clamp(20px, 4vw, 56px);
+}
+
+/* ============================================================
+   BASE
+   ============================================================ */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--font-text);
+  color: var(--fg-1);
+  background: var(--bg-1);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "ss01", "cv11";
+  letter-spacing: -0.005em;
+}
+
+/* ============================================================
+   TYPE SCALE
+   PolyU Design = bold confident neo-grotesque. Tight tracking on big
+   display, normal on body. Display is always font-weight 800-900.
+   ============================================================ */
+
+.t-display-xl, h1.display {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: clamp(56px, 10vw, 180px);
+  line-height: 0.88;
+  letter-spacing: -0.045em;
+  color: var(--fg-1);
+}
+.t-display, h1 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(40px, 6vw, 96px);
+  line-height: 0.92;
+  letter-spacing: -0.035em;
+  color: var(--fg-1);
+}
+.t-h1, h2 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(32px, 4vw, 56px);
+  line-height: 1.0;
+  letter-spacing: -0.025em;
+}
+.t-h2, h3 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(24px, 2.4vw, 32px);
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+}
+.t-h3, h4 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1.2;
+  letter-spacing: -0.005em;
+}
+.t-body, p {
+  font-family: var(--font-text);
+  font-size: 16px;
+  line-height: 1.55;
+}
+.t-body-lg, .lede {
+  font-family: var(--font-text);
+  font-size: 20px;
+  line-height: 1.45;
+  font-weight: 400;
+  color: var(--fg-2);
+}
+.t-small {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--fg-3);
+}
+.t-meta, .eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+.t-mono {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: -0.01em;
+}
+
+/* "Question, Question, Question." — the rotated marginalia voice. */
+.t-margin {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-size: 11px;
+  color: var(--fg-3);
+}
+
+/* ============================================================
+   UTILITIES
+   ============================================================ */
+.surface-ink { background: var(--bg-ink); color: var(--fg-inv); }
+.surface-ink .t-meta, .surface-ink .eyebrow { color: rgba(255,255,255,0.6); }
+.surface-card { background: var(--bg-2); }
+.hairline { border: 1px solid var(--line); }
+.hairline-strong { border: 1px solid var(--line-strong); }
+
+a { color: inherit; text-decoration: none; }
+a:hover { color: var(--accent-deep); }
+
+/* ait4x wordmark — the "i" in "AI" is a dot, echoing POLYU DES°GN.
+   Use .wordmark > span.dot for the invisible-i. */
+.wordmark {
+  font-family: var(--font-display);
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+.wordmark .dot {
+  display: inline-block;
+  width: 0.22em;
+  height: 0.22em;
+  background: currentColor;
+  border-radius: 50%;
+  vertical-align: 0.45em;
+  margin: 0 0.04em;
+}
+.wordmark .x {
+  color: var(--accent-warm);
+}
