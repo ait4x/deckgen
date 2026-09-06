@@ -412,6 +412,9 @@ body.ho{overflow:auto;height:auto;background:#fff}
 .ho-ex .ex-hint{font-size:12px;margin-left:auto}
 .ho-ex .ex-out{margin:0 14px 14px;font-size:14px;max-height:none}
 @media (max-width:900px){#ho-open{display:block}}
+/* already reading: the way out is the Deck view button in the sticky bar, and leaving
+   this one up collides with the console button in the opposite corner */
+body.ho #ho-open{display:none!important}
 @media print{.handout,#ho-open{display:none!important} body.ho .reveal{display:block!important}}
 """
 
@@ -452,7 +455,11 @@ HTML_TMPL = """<!doctype html>
 <script>
 Reveal.initialize({{width:1920,height:1080,margin:0,minScale:0.05,maxScale:4,center:false,hash:true,transition:'none',
   backgroundTransition:'none',controls:false,progress:true,slideNumber:false,plugins:[RevealNotes],
-  pdfMaxPagesPerSlide:1,pdfSeparateFragments:false,keyboard:{{}}}});
+  pdfMaxPagesPerSlide:1,pdfSeparateFragments:false,keyboard:{{}},
+  // reveal's own scroll view activates below 435px and CLONES every slide, which on a
+  // phone gave two of every exercise — duplicate ids, and Run doing nothing on whichever
+  // copy the browser resolved first. The reading view is our answer to small screens.
+  scrollActivationWidth:null}});
 </script>
 </body>
 </html>

@@ -48,10 +48,16 @@
   function moveExercises(toHandout) {
     var sel = toHandout ? '.reveal .ex' : '.handout .ex';
     Array.prototype.forEach.call(document.querySelectorAll(sel), function (ex) {
-      var slot = toHandout
-        ? main.querySelector('.ho-ex[data-for="' + cssEscape(ex.dataset.eid) + '"]')
-        : homeFor(ex);
-      if (slot && slot.parentNode) slot.parentNode.insertBefore(ex, slot.nextSibling);
+      if (toHandout) {
+        // inside the slot, not beside it: the .ho-ex .ex rules that undo the deck's
+        // inline geometry only match a descendant, and without them the editor keeps
+        // its 860px slide width on a 390px screen
+        var slot = main.querySelector('.ho-ex[data-for="' + cssEscape(ex.dataset.eid) + '"]');
+        if (slot) slot.appendChild(ex);
+      } else {
+        var home = homeFor(ex);
+        if (home && home.parentNode) home.parentNode.insertBefore(ex, home.nextSibling);
+      }
     });
   }
 
@@ -90,6 +96,20 @@
     });
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
-  else init();
+  // reveal.js rebuilds .slides during its own initialisation, which happens after
+  // DOMContentLoaded. Moving the exercise widgets before that finishes does not survive:
+  // reveal restores the sections from its copy, so the deck ends up with fresh, unwired
+  // clones of every widget while the wired originals sit in the reading view — duplicate
+  // ids, and Run doing nothing on whichever copy the browser resolves first. Wait for it.
+  function start() {
+    var tries = 0;
+    (function ready() {
+      if (window.Reveal && Reveal.isReady && Reveal.isReady()) return init();
+      if (++tries > 200) return init();     // 10s — no reveal on the page, or it never came up
+      setTimeout(ready, 50);
+    })();
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+  else start();
 })();

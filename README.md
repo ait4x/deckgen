@@ -185,9 +185,18 @@ python tests/runtime.test.py     # the Python half, against the real interpreter
 npm install --no-save jsdom
 node tests/wiring.test.js        # the DOM half, Pyodide stubbed
 node tests/handout.test.js       # the reading view: switching, and moving the widgets
+node tests/browser.test.js       # the whole thing: real Chromium, real Pyodide, real phone
 ```
 
-Both JS suites build `tests/fixture/` themselves, so they need `deckgen` on `PATH`.
+All three JS suites build `tests/fixture/` themselves, so they need `deckgen` on `PATH`.
+`browser.test.js` additionally needs Playwright's Chromium; on Arch that means
+`nss nspr at-spi2-core libxcomposite libxdamage libxrandr libxkbcommon libcups`.
+
+**Run `browser.test.js` before shipping a change to the runtime or the reading view.** It
+is the only suite with layout and a real reveal.js in it, and every bug it has found was
+invisible to the other three: reveal cloning every slide below 435px, CSS overrides that
+never matched because a node was inserted beside its slot instead of inside it, and
+Pyodide handing JS `null` across as a sentinel that is not `None`.
 
 `runtime.test.py` needs nothing but CPython — Pyodide runs the same interpreter, so what
 passes there passes in the browser. `wiring.test.js` drives a built deck with a stubbed

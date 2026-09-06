@@ -48,6 +48,20 @@ check('stderr is captured too', 'out' in r['out'] and 'err' in r['out'])
 r = json.loads(run('x = 1', '', None))
 check('no check means no verdict', r['ok'] is None)
 
+
+class _JsNull:
+    """Pyodide 314 hands JS null over as a sentinel object, not None. That made
+    `expect is not None` true for every check-based exercise and blew up on .strip()."""
+    def __repr__(self):
+        return 'JsNull'
+
+
+CHK2 = 'ok = _out.strip() == "1"'
+r = json.loads(run('print(1)', CHK2, _JsNull()))
+check('a JsNull expect is treated as absent', r['ok'] is True and not r['err'])
+r = json.loads(run('print(1)', _JsNull(), _JsNull()))
+check('a JsNull check is treated as absent', r['ok'] is None and not r['err'])
+
 # each exercise gets a clean namespace
 run('leaked = 99', '', None)
 r = json.loads(run('print("leaked" in dir())', '', None))

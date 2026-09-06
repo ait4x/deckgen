@@ -33,10 +33,11 @@ function makeDom(opts) {
     removeEventListener: () => {},
   });
   const cfg = [];
-  w.Reveal = { configure: (o) => cfg.push(o), layout: () => {} };
+  w.Reveal = { isReady: () => true, configure: (o) => cfg.push(o), layout: () => {} };
   if (opts.saved) w.localStorage.setItem('deckgen.view', opts.saved);
   w.eval(js);
   w.document.dispatchEvent(new w.Event('DOMContentLoaded'));
+  // handout.js waits for Reveal.isReady() on a timer; jsdom's fake clock needs a nudge
   return { w, cfg, listeners };
 }
 
@@ -47,7 +48,7 @@ const PHONE = { '(max-width: 900px)': true, '(orientation: portrait)': true, '(h
   const dom = new JSDOM(html, { url: 'http://x/t/?print-pdf', runScripts: 'outside-only', pretendToBeVisual: true });
   const w = dom.window;
   w.matchMedia = () => ({ matches: true, addEventListener(){}, addListener(){}, removeEventListener(){} });
-  w.Reveal = { configure(){}, layout(){} };
+  w.Reveal = { isReady: () => true, configure(){}, layout(){} };
   w.localStorage.setItem('deckgen.view', 'handout');
   w.eval(js);
   w.document.dispatchEvent(new w.Event('DOMContentLoaded'));
@@ -62,13 +63,16 @@ const DESKTOP = {};
   const d = w.document;
   check('phone defaults to reading view', d.body.classList.contains('ho'));
   check('handout is shown', !d.querySelector('.handout').hidden);
+  check('the Reading view button hides itself once reading',
+        w.getComputedStyle(d.getElementById('ho-open')).display === 'none');
   check('reveal keyboard and touch released', JSON.stringify(cfg[0]) === '{"keyboard":false,"touch":false}');
   check('exercises moved into the reading view', d.querySelectorAll('.handout .ex').length === 2);
   check('none left in the deck', d.querySelectorAll('.reveal .ex').length === 0);
   check('widgets are moved, not copied', d.querySelectorAll('.ex').length === 2);
-  check('each landed in its own slot',
+  check('each landed INSIDE its own slot',
     Array.from(d.querySelectorAll('.handout .ex')).every(
-      ex => ex.previousElementSibling.dataset.for === ex.dataset.eid));
+      ex => ex.parentElement.classList.contains('ho-ex') &&
+            ex.parentElement.dataset.for === ex.dataset.eid));
 
   // switching back returns them to where they came from
   d.getElementById('ho-deck').click();

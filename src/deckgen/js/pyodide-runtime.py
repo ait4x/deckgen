@@ -32,7 +32,16 @@ def _dg_capture(fn):
 
 
 def _dg_run(src, check, expect):
-    """One exercise: the student's code, then the check. Fresh namespace every time."""
+    """One exercise: the student's code, then the check. Fresh namespace every time.
+
+    `check` and `expect` arrive from JavaScript. Pyodide 314 hands JS `null` across as a
+    JsNull sentinel rather than None, so `expect is not None` was true for an exercise
+    that has no expected output and `.strip()` raised AttributeError — every check-based
+    exercise failed in the browser while passing under CPython. Anything that is not a
+    str is absent, whatever the FFI decided to call it.
+    """
+    check = check if isinstance(check, str) else ''
+    expect = expect if isinstance(expect, str) else None
     ns = {}
     _, out, err = _dg_capture(lambda: exec(src, ns))
     ok, msg = None, ''
