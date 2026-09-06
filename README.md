@@ -111,3 +111,55 @@ deckgen --root PATH ...         act on a repo elsewhere
 
 Neither `--site` nor `--pptx` means both. `build` exits non-zero if any text overflows its
 box, so a broken slide fails the workflow rather than reaching the projector.
+
+## Runnable exercises
+
+`exercise()` puts an editable code box, a Run button and a pass/fail check on a slide.
+Students open the deck on their laptops and type into it; **Pyodide runs the Python in
+the browser**, so there is nothing to install and nothing to submit.
+
+```python
+from deckgen.layouts import exercise
+
+exercise('04 · TYPES', 'Make it say 12',
+         'Two strings glued together give "66". Make Python add them as numbers.',
+         code='a = "6"\nb = "6"\nprint(a + b)',
+         expect='12')
+
+exercise('04 · ALIASING', 'Stop the aliasing',
+         'b should not change when a does.',
+         code='a = [1, 2, 3]\nb = a\nb.append(4)\nprint(a)',
+         check='ok = _out.strip() == "[1, 2, 3]"\n'
+               'msg = "" if ok else "a still has the 4 in it"')
+```
+
+Pass **`expect`** (stdout must equal it, both sides stripped) or **`check`** (Python run
+afterwards in the student's namespace, with the captured stdout bound to `_out`; set
+`ok = True` to pass, and anything in `msg` is shown to them).
+
+- **Nothing loads until it is used.** Pyodide is ~12 MB; the runtime is fetched on the
+  first Run or the first time the console is opened, never on page load. A deck with no
+  exercises never references it at all.
+- **A console on every slide.** Backtick, or the button bottom-left. It keeps its state
+  between lines, so you can demonstrate something and then poke at it.
+- **Answers survive a reload** — code and pass/fail go into `localStorage`, keyed per deck.
+- **Reveal's keyboard is released while typing**, so space and the arrows reach the editor
+  instead of moving the deck.
+- **pptx and PDF degrade to a static code panel**, because PowerPoint cannot run Python
+  and a printed slide should still show the exercise.
+
+Code everywhere — `exercise`, `code_panel`, `two_col`'s right panel, `question(example=…)`
+— is set at `deckgen.CODE` (30 px = 15 pt), one size across every layout.
+
+## Tests
+
+```bash
+python tests/runtime.test.py     # the Python half, against the real interpreter
+npm install --no-save jsdom
+DECK_HTML=… DECK_JS=… node tests/wiring.test.js    # the DOM half, Pyodide stubbed
+```
+
+`runtime.test.py` needs nothing but CPython — Pyodide runs the same interpreter, so what
+passes there passes in the browser. `wiring.test.js` drives a built deck with a stubbed
+Pyodide and checks status classes, output, `localStorage`, reset, the console and the
+keyboard hand-off.

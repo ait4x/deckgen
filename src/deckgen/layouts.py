@@ -10,9 +10,10 @@ sits on the same grid as the master layouts installed there.
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
-from .core import (Slide, Text, Para, Rect, Image, Figure, Embed, T, P, runs, eyebrow,
+from .core import (Slide, Text, Para, Rect, Image, Figure, Embed, Exercise, T, P, runs, eyebrow, CODE, CODE_SMALL,
                      INK, WHITE, PAPER, GRAY, TEAL, TXT, MUTED, LINE, LINE_STRONG, ORANGE, VIOLET, PINK, YELLOW, GREEN, BLUE,
                      MUTED_ON_INK, LIGHT_ON_INK, YELLOWS, VIOLETS, TEALS, ORANGES, PINKS)
 
@@ -266,7 +267,7 @@ def question(kind, question_text, choices=None, hint=None, notes='', eyebrow_tex
         if hint:
             s.els.append(T(M, 700, 1300, 120, hint, 'body', 32, m, lh=1.35))
         if example:
-            s.els.append(T(M, 840, 1300, 100, example, 'mono', 24, m, lh=1.4))
+            s.els.append(T(M, 840, 1300, 100, example, 'mono', CODE_SMALL, m, lh=1.4))
         cp = cp or ({'type': 'word_cloud', 'submissions': 1} if kind == 'word_cloud'
                     else {'type': 'image_upload', 'hide_names': False} if kind == 'image_upload'
                     else {'type': 'short_answer', 'hide_names': False, 'multiple': False})
@@ -428,7 +429,7 @@ def team_band(eyebrow_text, title_text, leads, band_label, assistants, notes='',
     return s
 
 
-def two_col(eyebrow_text, title_text, left, right, notes='', bg=WHITE, right_bg=PAPER, right_font='mono', right_size=26):
+def two_col(eyebrow_text, title_text, left, right, notes='', bg=WHITE, right_bg=PAPER, right_font='mono', right_size=CODE):
     """Body left, a code / text panel right."""
     t, b, m = palette(bg)
     s = _slide(bg, notes, title=title_text)
@@ -440,3 +441,55 @@ def two_col(eyebrow_text, title_text, left, right, notes='', bg=WHITE, right_bg=
         Text(1040, TITLE_Y + 40, 720, 690, body_paras(right, right_size, INK if right_bg != INK else LIGHT_ON_INK, lh=1.5, gap=0, font=right_font), 't'),
     ]
     return s
+
+
+def code_panel(eyebrow_text, title_text, lines, notes='', bg=WHITE, caption=None, cp=None):
+    """A slide that is mostly code. One column, full width, at the canonical CODE size."""
+    t, b, m = palette(bg)
+    s = _slide(bg, notes, cp=cp, title=title_text)
+    s.els += [
+        eyebrow(M, 96, eyebrow_text, m),
+        T(M, TITLE_Y, CW, 140, title_text, 'xbold', 72, t, lh=0.95, spc=-0.03),
+        Rect(M, 372, CW, 520 if caption else 580, PAPER if bg is not PAPER else WHITE),
+        Text(M + 40, 412, CW - 80, 500, [Para([runs(ln or ' ', 'mono', CODE, INK)[0]], 'l', 1.45)
+                                         for ln in lines], 't'),
+    ]
+    if caption:
+        s.els.append(T(M, 916, CW, 60, caption, 'body', 30, m, lh=1.3))
+    return s
+
+
+def exercise(eyebrow_text, title_text, brief, code, check=None, expect=None, eid=None,
+             label=None, hint=None, notes='', bg=WHITE, rows=8, cp=None):
+    """A drill the room does on their laptops.
+
+    `brief` is the one or two lines telling them what to do — keep it to one idea.
+    `code` is what starts in the editor; leave a blank or a `___` where they type.
+    Pass either `expect` (the exact stdout you want) or `check` (Python that runs
+    afterwards in the same namespace and sets `ok = True`, with `_out` bound to the
+    captured stdout). Everything degrades to a static code panel in the pptx and PDF,
+    so the deck still reads on a projector with no network.
+
+        exercise('04 · TYPES', 'Make it say 12',
+                 'Fix the line so the total prints as a number, not "66".',
+                 code='a = "6"\nb = "6"\nprint(a + b)',
+                 expect='12')
+    """
+    t, b, m = palette(bg)
+    s = _slide(bg, notes, cp=cp, title=title_text)
+    s.els += [
+        eyebrow(M, 96, eyebrow_text, m),
+        T(M, TITLE_Y, 780, 200, title_text, 'xbold', 64, t, lh=0.98, spc=-0.03),
+        Text(M, 400, 780, 300, body_paras(brief if isinstance(brief, list) else [brief],
+                                          32, b, lh=1.4, gap=14), 't'),
+    ]
+    s.els.append(Exercise(940, 184, 860, 766, code,
+                          check=check or '', expect=expect,
+                          eid=eid or _eid(title_text), label=label or 'YOUR TURN',
+                          hint=hint or 'ctrl+enter runs it', rows=rows))
+    return s
+
+
+def _eid(text):
+    """A stable, readable id for localStorage — the saved answer must survive a rebuild."""
+    return re.sub(r'[^a-z0-9]+', '-', text.lower()).strip('-')[:40] or 'ex'

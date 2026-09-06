@@ -37,6 +37,12 @@ W, H = 1920, 1080
 PX = 6350  # EMU per px on a 1920x1080 (13.333 x 7.5 in) slide
 PT = 0.5   # points per design px on that slide (1920 px = 13.333 in = 960 pt)
 
+# One size for code, everywhere. Code panels used to drift between 22, 24 and 26 px
+# depending on which layout drew them; a student reading a projected slide should meet
+# the same typeface at the same size every time code appears. 30 px = 15 pt in PowerPoint.
+CODE = 30
+CODE_SMALL = 26   # only where a panel genuinely cannot fit CODE (long lines, dense output)
+
 # ───────────────────────── tokens (ait4x / PolyU Design) ─────────────────────────
 INK, WHITE, PAPER, GRAY, TEAL = '#000B1C', '#FFFFFF', '#F4F4F2', '#BBBCB9', '#64C2C3'
 TXT, MUTED, LINE, LINE_STRONG = '#2A323D', '#5C6470', '#E1E1DE', '#1F2832'
@@ -135,6 +141,32 @@ class Embed:
 
 
 @dataclass
+class Exercise:
+    """A runnable Python drill.
+
+    html: an editable code box, a Run button, an output pane and a pass/fail check,
+    executed in the browser by Pyodide — no install, works on a student's laptop
+    during class. pptx and png: the same code as a static panel, because PowerPoint
+    cannot run Python and a printed slide should still show the exercise.
+
+    `check` is Python run after the student's code, in the same namespace, with the
+    captured stdout bound to `_out`. It passes by setting `ok = True`; anything it
+    puts in `msg` is shown to the student. `expect` is the shorthand for the common
+    case: stdout must equal this string once both sides are stripped.
+    """
+    x: int; y: int; w: int; h: int
+    code: str                       # starter code, shown in the editor
+    check: str = ''                 # python; set ok = True to pass
+    expect: str | None = None       # or: expected stdout, compared stripped
+    eid: str = ''                   # stable id — keys the saved answer in localStorage
+    label: str = ''                 # 'EXERCISE 01'
+    hint: str = ''
+    rows: int = 8                   # editor height, in lines
+    name: str = ''
+    kind: str = 'exercise'
+
+
+@dataclass
 class Slide:
     bg: str = WHITE
     els: list = field(default_factory=list)
@@ -142,6 +174,18 @@ class Slide:
     cp: dict | None = None      # ClassPoint activity for build.py
     title: str = ''             # for the outline / html title
     html_only: list = field(default_factory=list)  # elements only for html (e.g. live demos)
+
+
+def exercise_static(el):
+    """The pptx/png rendering of an Exercise: the panel and the code, no controls."""
+    lines = el.code.split('\n')
+    body = [Para([Run(ln or ' ', 'mono', CODE, INK)], 'l', 1.45) for ln in lines]
+    out = [Rect(el.x, el.y, el.w, el.h, PAPER, name=el.name or 'exercise-panel'),
+           Text(el.x + 40, el.y + 32, el.w - 80, el.h - 64, body, 't')]
+    if el.label:
+        out.insert(1, Text(el.x + 40, el.y - 44, el.w - 80, 36,
+                           [Para(runs(el.label, 'monomed', 22, ORANGE, spc=0.14, caps=True), 'l', 1.2)], 't'))
+    return out
 
 
 # ───────────────────────── inline markup ─────────────────────────
@@ -283,7 +327,61 @@ html,body{background:#000B1C}
 @media print{.cp{display:none}.embed iframe{display:none}.embed .print-only{display:block;width:100%;height:100%;object-fit:cover}}
 .reveal .progress{height:4px;color:#ED6D24}
 .reveal .backgrounds{background:#000B1C}
+
+/* ── runnable exercises (vendor/pyodide-console.js) ── */
+.ex{position:absolute;display:flex;flex-direction:column;background:#F4F4F2;border:2px solid #E1E1DE;box-sizing:border-box}
+.ex-head{display:flex;justify-content:space-between;align-items:baseline;padding:14px 20px 0}
+.ex-label{font:500 22px/1 var(--font-m);letter-spacing:.14em;text-transform:uppercase;color:#ED6D24}
+.ex-status{font:500 22px/1 var(--font-m);letter-spacing:.08em;text-transform:uppercase;color:#5C6470}
+.ex.pass .ex-status{color:#00544C} .ex.fail .ex-status{color:#ED6D24} .ex.busy .ex-status{color:#5C6470}
+.ex.pass{border-color:#64C2C3} .ex.fail{border-color:#ED6D24}
+.ex-code{flex:1 1 auto;min-height:0;margin:12px 20px 0;padding:16px;border:0;resize:none;outline:0;
+  background:#fff;color:#000B1C;font:400 __CODE__px/1.45 var(--font-m);tab-size:4;white-space:pre;overflow:auto}
+.ex-code:focus{box-shadow:inset 0 0 0 2px #64C2C3}
+.ex-bar{display:flex;align-items:center;gap:12px;padding:12px 20px}
+.ex-bar button{font:500 24px/1 var(--font-m);letter-spacing:.08em;text-transform:uppercase;padding:10px 22px;
+  border:0;cursor:pointer;background:#000B1C;color:#fff}
+.ex-bar button.ex-reset{background:transparent;color:#5C6470;padding:10px 8px}
+.ex-bar button:hover{background:#ED6D24;color:#fff}
+.ex-hint{font:400 22px/1.3 var(--font-d);color:#5C6470;margin-left:auto;text-align:right}
+.ex-out{margin:0 20px 20px;padding:0;max-height:34%;overflow:auto;white-space:pre-wrap;
+  font:400 __CODE_SMALL__px/1.4 var(--font-m);color:#2A323D}
+.ex-out:empty{display:none}
+.ex-out .err{color:#E42519}
+.ex-out .msg{color:#00544C}
+
+/* the global console: backtick, or the button bottom-left */
+#pyc{position:fixed;left:0;right:0;bottom:0;height:44vh;background:#000B1C;color:#D3E7E8;z-index:60;
+  display:none;flex-direction:column;box-shadow:0 -8px 40px rgba(0,0,0,.5)}
+#pyc.on{display:flex}
+#pyc .pyc-log{flex:1 1 auto;overflow:auto;padding:20px 28px;margin:0;white-space:pre-wrap;font:400 24px/1.5 var(--font-m)}
+#pyc .pyc-log .in{color:#64C2C3} #pyc .pyc-log .err{color:#ED6D24}
+#pyc .pyc-in{border:0;outline:0;background:#0A1526;color:#fff;padding:18px 28px;font:400 26px/1.4 var(--font-m)}
+#pyc .pyc-bar{display:flex;justify-content:space-between;align-items:center;padding:10px 28px;
+  font:500 20px/1 var(--font-m);letter-spacing:.14em;text-transform:uppercase;color:#5C6470;border-bottom:1px solid #1F2832}
+#pyc .pyc-bar button{background:none;border:0;color:#5C6470;font:inherit;cursor:pointer}
+#pyc .pyc-bar button:hover{color:#ED6D24}
+#pyc-open{position:fixed;left:16px;bottom:16px;z-index:59;background:#000B1C;color:#fff;border:0;cursor:pointer;
+  font:500 20px/1 var(--font-m);letter-spacing:.14em;text-transform:uppercase;padding:12px 18px;opacity:.55}
+#pyc-open:hover{opacity:1;background:#ED6D24}
+#pyload{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:70;background:#000B1C;color:#fff;
+  padding:28px 36px;font:500 24px/1.4 var(--font-m);letter-spacing:.08em;display:none}
+#pyload.on{display:block}
+
+@media print{.ex-bar,.ex-status,.ex-out,#pyc,#pyc-open,#pyload{display:none!important}
+  .ex-code{overflow:visible;height:auto}}
 """
+
+# Injected only when a deck actually has exercises or asks for the console — a deck of
+# pure prose should not make 112 laptops fetch a Python runtime.
+PYODIDE_HTML = '''
+<button id="pyc-open" type="button" title="Python console (`)">Python ›_</button>
+<div id="pyload">Loading Python…</div>
+<div id="pyc"><div class="pyc-bar"><span>Python console — shift+enter for a new line, ` to close</span><button id="pyc-clear" type="button">clear</button></div>
+<pre class="pyc-log"></pre><input class="pyc-in" spellcheck="false" autocapitalize="off" autocorrect="off" placeholder=">>>"></div>
+<script>window.PYODIDE_URL={pyodide_url!r};</script>
+<script src="../vendor/pyodide-console.js"></script>
+'''
 
 HTML_TMPL = """<!doctype html>
 <html lang="en">
@@ -301,6 +399,7 @@ HTML_TMPL = """<!doctype html>
 </div></div>
 <script src="../vendor/reveal/reveal.js"></script>
 <script src="../vendor/reveal/plugin/notes/notes.js"></script>
+{pyodide}
 <script>
 Reveal.initialize({{width:1920,height:1080,margin:0,minScale:0.05,maxScale:4,center:false,hash:true,transition:'none',
   backgroundTransition:'none',controls:false,progress:true,slideNumber:false,plugins:[RevealNotes],
@@ -313,6 +412,12 @@ Reveal.initialize({{width:1920,height:1080,margin:0,minScale:0.05,maxScale:4,cen
 
 def esc(s):
     return s.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+
+def attr(s):
+    """esc() is for text nodes and leaves quotes alone — inside an attribute a bare
+    quote ends it early. Python checks are full of them."""
+    return esc(s).replace('"', '&quot;').replace("'", '&#39;')
 
 
 def css_font(run):
@@ -339,7 +444,7 @@ def html_text(el):
             t = esc(r.text)
             span = f'<span style="{css_font(r)}">{t}</span>'
             if r.url:
-                span = f'<a href="{esc(r.url)}" target="_blank" rel="noopener">{span}</a>'
+                span = f'<a href="{attr(r.url)}" target="_blank" rel="noopener">{span}</a>'
             out.append(span)
         out.append('</p>')
     out.append('</div>')
@@ -365,6 +470,8 @@ def html_slide(s, i, assets_out, assets_rel):
             parts.append(f'<div class="img" style="left:{el.x}px;top:{el.y}px;width:{el.w}px;height:{el.h}px"><img src="{assets_rel}/{src}" alt="" style="object-fit:{fit}"></div>')
         elif el.kind == 'figure':
             parts.append(f'<div class="fig" style="left:{el.x}px;top:{el.y}px;width:{el.w}px;height:{el.h}px">{el.svg}</div>')
+        elif el.kind == 'exercise':
+            parts.append(html_exercise(el))
         elif el.kind == 'embed':
             thumb = f'<img class="print-only" src="{assets_rel}/{copy_asset(el.thumb, assets_out)}" alt="">' if el.thumb else ''  # the pdf shows the thumbnail
             parts.append(f'<div class="embed" style="left:{el.x}px;top:{el.y}px;width:{el.w}px;height:{el.h}px"><iframe data-src="https://www.youtube-nocookie.com/embed/{el.yt}?rel=0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>{thumb}</div>')
@@ -375,6 +482,25 @@ def html_slide(s, i, assets_out, assets_rel):
         parts.append(f'<aside class="notes">{esc(s.notes)}</aside>')
     parts.append('</section>')
     return '\n'.join(parts)
+
+
+def html_exercise(el):
+    """Editor + Run + output. The check travels as a data attribute; the runtime in
+    vendor/pyodide-console.js does the executing."""
+    eid = attr(el.eid or el.name or 'ex')
+    attrs = f'class="ex" id="ex-{eid}" data-eid="{eid}" data-rows="{el.rows}"'
+    if el.check:
+        attrs += f' data-check="{attr(el.check)}"'
+    if el.expect is not None:
+        attrs += f' data-expect="{attr(el.expect)}"'
+    head = f'<div class="ex-head"><span class="ex-label">{esc(el.label)}</span><span class="ex-status" aria-live="polite"></span></div>' if el.label else ''
+    hint = f'<span class="ex-hint">{esc(el.hint)}</span>' if el.hint else ''
+    return (f'<div {attrs} style="left:{el.x}px;top:{el.y}px;width:{el.w}px;height:{el.h}px">'
+            f'{head}'
+            f'<textarea class="ex-code" spellcheck="false" autocapitalize="off" autocorrect="off">{esc(el.code)}</textarea>'
+            f'<div class="ex-bar"><button class="ex-run" type="button">Run</button>'
+            f'<button class="ex-reset" type="button">Reset</button>{hint}</div>'
+            f'<pre class="ex-out"></pre></div>')
 
 
 def copy_asset(src, assets_out):
@@ -397,16 +523,31 @@ def _has_alpha(im):
     return im.mode in ('RGBA', 'LA') and im.getextrema()[-1][0] < 255
 
 
+PYODIDE_VERSION = '314.0.6'
+PYODIDE_CDN = 'https://cdn.jsdelivr.net/pyodide/v{v}/full/'
+
+
 def build_html(deck, out_dir: Path):
     out_dir.mkdir(parents=True, exist_ok=True)
     assets_out = out_dir / 'assets'
     slides = '\n'.join(html_slide(s, i + 1, assets_out, 'assets') for i, s in enumerate(deck['slides']))
-    html = HTML_TMPL.format(title=esc(deck['title']), css=CSS, slides=slides)
+    # only ship the runtime if the deck can use it
+    live = deck.get('console', True) and any(
+        el.kind == 'exercise' for sl in deck['slides'] for el in sl.els + sl.html_only)
+    pyodide = ''
+    if live:
+        url = deck.get('pyodide_url') or PYODIDE_CDN.format(v=deck.get('pyodide_version', PYODIDE_VERSION))
+        pyodide = PYODIDE_HTML.format(pyodide_url=url)
+    css = CSS.replace('__CODE__', str(CODE)).replace('__CODE_SMALL__', str(CODE_SMALL))
+    html = HTML_TMPL.format(title=esc(deck['title']), css=css, slides=slides, pyodide=pyodide)
     (out_dir / 'index.html').write_text(html, encoding='utf-8')
-    vendor_fonts = out_dir.parent / 'vendor' / 'fonts'
-    vendor_fonts.mkdir(parents=True, exist_ok=True)
+    vendor = out_dir.parent / 'vendor'
+    (vendor / 'fonts').mkdir(parents=True, exist_ok=True)
     for f in FONT_DIR.glob('*.ttf'):
-        shutil.copy(f, vendor_fonts / f.name)
+        shutil.copy(f, vendor / 'fonts' / f.name)
+    if live:
+        for f in ('pyodide-console.js', 'pyodide-runtime.py'):
+            shutil.copy(JS_DIR / f, vendor / f)
     return out_dir / 'index.html'
 
 
@@ -532,6 +673,9 @@ def build_pptx(deck, out_path: Path, footer: str):
                 add_image(slide, el.src, el)
             elif el.kind == 'figure':
                 add_image(slide, el.png, el)
+            elif el.kind == 'exercise':
+                for sub_el in exercise_static(el):
+                    (add_rect if sub_el.kind == 'rect' else add_text)(slide, sub_el)
             elif el.kind == 'embed':
                 if el.thumb:
                     add_image(slide, el.thumb, el)
@@ -586,7 +730,10 @@ def build_png(deck, out_dir: Path, scale=0.5):
     for i, s in enumerate(deck['slides'], start=1):
         im = PImage.new('RGB', (W, H), s.bg)
         d = ImageDraw.Draw(im)
+        els = []
         for el in s.els:
+            els.extend(exercise_static(el) if el.kind == 'exercise' else [el])
+        for el in els:
             if el.kind == 'rect':
                 if el.fill:
                     d.rectangle([el.x, el.y, el.x + el.w - 1, el.y + el.h - 1], fill=el.fill)
