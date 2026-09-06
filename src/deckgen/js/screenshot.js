@@ -1,5 +1,5 @@
 // Screenshot every slide of a built html deck with the pre-installed Chromium.
-// usage: NODE_PATH=$(npm root -g) node tools/screenshot.js docs/week01/index.html export/preview/html-week01
+// usage: NODE_PATH=<repo>/node_modules node screenshot.js _site/week02/index.html out/
 const path = require('path');
 const fs = require('fs');
 const { chromium } = require('playwright');

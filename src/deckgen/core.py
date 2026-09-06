@@ -686,11 +686,20 @@ def contact_sheet(files, out, cols=4, scale=0.5):
 # ───────────────────────── orchestration ─────────────────────────
 def build_pdf(index_html: Path, out_pdf: Path):
     """Print the html deck to a PDF (reveal.js print mode, Chromium via Playwright, js/pdf.js).
-    No ClassPoint chips, video slides show their thumbnail. Needs node + the playwright package
-    (NODE_PATH or a node_modules next to the repo) and a Chromium it can launch."""
+    No ClassPoint chips, video slides show their thumbnail. Needs node and the playwright
+    package, plus a Chromium it can launch.
+
+    pdf.js lives inside the installed package, so node resolves `require('playwright')`
+    relative to site-packages and never sees the course repo's node_modules/. NODE_PATH is
+    how that gets bridged — without it the PDF step fails on a machine where `npm install`
+    put playwright exactly where the docs say to put it."""
     env = dict(os.environ)
-    if not env.get('NODE_PATH') and Path('/opt/node22/lib/node_modules').exists():
-        env['NODE_PATH'] = '/opt/node22/lib/node_modules'
+    roots = [p for p in (current().root / 'node_modules', Path('/opt/node22/lib/node_modules'))
+             if p.is_dir()]
+    if env.get('NODE_PATH'):
+        roots.append(Path(env['NODE_PATH']))
+    if roots:
+        env['NODE_PATH'] = os.pathsep.join(str(p) for p in roots)
     subprocess.run(['node', str(JS_DIR / 'pdf.js'), str(index_html), str(out_pdf)], check=True, env=env)
     return out_pdf
 

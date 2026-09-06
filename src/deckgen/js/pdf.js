@@ -1,6 +1,8 @@
 // Print a built html deck to PDF: reveal.js print mode in Chromium (Playwright).
 // The print stylesheet hides the ClassPoint chips and shows video thumbnails.
-// usage: NODE_PATH=$(npm root -g) node tools/pdf.js _site/week01/index.html _site/week01/SD2112-week01.pdf
+// Invoked by deckgen.core.build_pdf, which sets NODE_PATH to the course repo's
+// node_modules — this file lives in site-packages, so node cannot find playwright otherwise.
+// usage: NODE_PATH=<repo>/node_modules node pdf.js _site/week02/index.html out.pdf
 const path = require('path');
 const { chromium } = require('playwright');
 
