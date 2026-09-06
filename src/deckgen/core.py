@@ -181,7 +181,7 @@ def exercise_static(el):
     lines = el.code.split('\n')
     body = [Para([Run(ln or ' ', 'mono', CODE, INK)], 'l', 1.45) for ln in lines]
     out = [Rect(el.x, el.y, el.w, el.h, PAPER, name=el.name or 'exercise-panel'),
-           Text(el.x + 40, el.y + 32, el.w - 80, el.h - 64, body, 't')]
+           Text(el.x + 40, el.y + 32, el.w - 80, el.h - 64, body, 't', name='code')]
     if el.label:
         out.insert(1, Text(el.x + 40, el.y - 44, el.w - 80, 36,
                            [Para(runs(el.label, 'monomed', 22, ORANGE, spc=0.14, caps=True), 'l', 1.2)], 't'))
@@ -370,6 +370,49 @@ html,body{background:#000B1C}
 
 @media print{.ex-bar,.ex-status,.ex-out,#pyc,#pyc-open,#pyload{display:none!important}
   .ex-code{overflow:visible;height:auto}}
+
+/* ── reading view: the same slides, reflowed, for phones ── */
+.handout{display:none;background:#fff;color:#000B1C;max-width:44rem;margin:0 auto;padding:0 20px 96px;
+  font-family:var(--font-d);-webkit-text-size-adjust:100%}
+body.ho .handout{display:block}
+body.ho .reveal{display:none}
+body.ho{overflow:auto;height:auto;background:#fff}
+.ho-bar{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid #E1E1DE;
+  display:flex;justify-content:space-between;align-items:center;gap:16px;padding:14px 0;margin-bottom:8px}
+.ho-title{font:800 17px/1.2 var(--font-d);letter-spacing:-.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ho-bar button,#ho-open{font:500 12px/1 var(--font-m);letter-spacing:.14em;text-transform:uppercase;
+  background:#000B1C;color:#fff;border:0;padding:11px 14px;cursor:pointer;flex:none;border-radius:2px}
+#ho-open{position:fixed;right:12px;bottom:12px;z-index:59;opacity:.85;display:none}
+.ho-slide{position:relative;padding:28px 0 32px;border-bottom:1px solid #E1E1DE}
+.ho-n{position:absolute;right:0;top:30px;font:500 11px/1 var(--font-m);color:#BBBCB9;letter-spacing:.14em}
+.ho-slide h2{font:800 30px/1.1 var(--font-d);letter-spacing:-.03em;margin:0 0 14px}
+.ho-slide h3{font:800 22px/1.2 var(--font-d);letter-spacing:-.02em;margin:18px 0 10px}
+.ho-slide p{font:400 17px/1.55 var(--font-d);color:#2A323D;margin:0 0 12px}
+.ho-slide ul{margin:0 0 14px;padding-left:20px} .ho-slide li{font:400 17px/1.55 var(--font-d);color:#2A323D;margin:0 0 7px}
+.ho-slide p.ho-eyebrow{font:500 11px/1.4 var(--font-m);letter-spacing:.16em;color:#5C6470;margin:0 0 10px}
+.ho-slide p.ho-label{font:500 13px/1.4 var(--font-m);letter-spacing:.06em;color:#ED6D24;margin:0 0 6px}
+.ho-slide p.ho-choice{display:flex;gap:10px;margin:0 0 8px}
+.ho-slide p.ho-choice b{flex:none;width:26px;height:26px;background:#000B1C;color:#fff;
+  font:500 13px/26px var(--font-m);text-align:center}
+.ho-slide code{font-family:var(--font-m);font-size:.9em;background:#F4F4F2;padding:1px 4px}
+.ho-slide strong{font-weight:700}
+.ho-slide a{color:#00544C;text-decoration:underline;text-underline-offset:.14em}
+.ho-slide img{width:100%;height:auto;display:block;margin:14px 0}
+.ho-fig svg{width:100%;height:auto;display:block;margin:14px 0}
+.ho-code{background:#F4F4F2;padding:14px;margin:0 0 14px;overflow-x:auto;
+  font:400 14px/1.5 var(--font-m);white-space:pre;-webkit-overflow-scrolling:touch}
+.ho-cp{font:500 11px/1.4 var(--font-m);letter-spacing:.14em;text-transform:uppercase;color:#ED6D24}
+/* the moved exercise: inline styles carry the deck geometry, so they need overriding */
+.ho-ex .ex{position:static!important;left:auto!important;top:auto!important;
+  width:100%!important;height:auto!important;margin:14px 0}
+.ho-ex .ex-head{padding:12px 14px 0} .ho-ex .ex-label,.ho-ex .ex-status{font-size:11px}
+.ho-ex .ex-code{margin:10px 14px 0;padding:12px;min-height:9.5em;font-size:16px;line-height:1.5}
+.ho-ex .ex-bar{padding:10px 14px;flex-wrap:wrap}
+.ho-ex .ex-bar button{font-size:12px;padding:11px 16px}
+.ho-ex .ex-hint{font-size:12px;margin-left:auto}
+.ho-ex .ex-out{margin:0 14px 14px;font-size:14px;max-height:none}
+@media (max-width:900px){#ho-open{display:block}}
+@media print{.handout,#ho-open{display:none!important} body.ho .reveal{display:block!important}}
 """
 
 # Injected only when a deck actually has exercises or asks for the console — a deck of
@@ -397,9 +440,15 @@ HTML_TMPL = """<!doctype html>
 <div class="reveal"><div class="slides">
 {slides}
 </div></div>
+<main class="handout" hidden>
+<div class="ho-bar"><span class="ho-title">{title}</span><button id="ho-deck" type="button">Deck view</button></div>
+{handout}
+</main>
+<button id="ho-open" type="button" title="Reading view">Reading view</button>
 <script src="../vendor/reveal/reveal.js"></script>
 <script src="../vendor/reveal/plugin/notes/notes.js"></script>
 {pyodide}
+<script src="../vendor/handout.js"></script>
 <script>
 Reveal.initialize({{width:1920,height:1080,margin:0,minScale:0.05,maxScale:4,center:false,hash:true,transition:'none',
   backgroundTransition:'none',controls:false,progress:true,slideNumber:false,plugins:[RevealNotes],
@@ -503,6 +552,142 @@ def html_exercise(el):
             f'<pre class="ex-out"></pre></div>')
 
 
+# ───────────────────────── handout (the phone view) ─────────────────────────
+# A 1920x1080 canvas of absolutely-positioned boxes cannot be made readable on a phone
+# by scaling: reveal fits the slide to the viewport, so on a 390px screen 36px body text
+# lands at about 7px and the exercise box is too small to type in. The content has to
+# reflow, which means a second, semantic rendering of the same slide data.
+#
+# Roles are inferred from what the layouts already encode — size, font, caps, bullets —
+# rather than by tagging every layout function. It is a heuristic, and it is allowed to
+# be: this view is for reading and for doing the exercises, not for reproducing the deck.
+# A short mono run that labels the thing after it: a choice letter, an agenda number,
+# a timeline year, a start time. On the slide it sits beside its text; in a reflowed
+# column it should join it rather than become an orphan line.
+LABEL_PREFIX = re.compile(r'^(?:[A-F]|\d{1,4}|\d{1,2}:\d{2})$')
+
+
+def _plain(el):
+    return ''.join(r.text for p in el.paras for r in p.runs).strip()
+
+
+def _role(el):
+    runs_all = [r for p in el.paras for r in p.runs]
+    if not runs_all:
+        return 'skip'
+    size = max(r.size for r in runs_all)
+    mono = all(FONTS[r.font][5] for r in runs_all)
+    # Code is declared by the layout, not inferred. Guessing it from "monospaced and
+    # biggish" turned agenda numbers, timeline years and quote attributions into <pre>.
+    if el.name == 'code':
+        return 'code'
+    if mono and all(r.caps for r in runs_all):
+        return 'eyebrow'
+    if mono:
+        return 'label'
+    if size >= 60:
+        return 'h2'
+    if size >= 40:
+        return 'h3'
+    return 'p'
+
+
+def handout_runs(para, role='p'):
+    # A heading is already bold and an eyebrow is already monospaced by the stylesheet;
+    # re-marking their runs would nest <strong> inside <h2> and <code> inside an eyebrow.
+    plain = role in ('h2', 'h3', 'eyebrow')
+    out = []
+    for r in para.runs:
+        t = esc(r.text.upper() if r.caps else r.text)
+        if plain:
+            pass
+        elif FONTS[r.font][5]:
+            t = f'<code>{t}</code>'
+        elif FONTS[r.font][2] >= 600:
+            t = f'<strong>{t}</strong>'
+        if r.color in (ORANGE, TEAL, VIOLET, PINK, GREEN, BLUE, DEEP_TEAL):
+            t = f'<em style="color:{r.color};font-style:normal">{t}</em>'
+        if r.url:
+            t = f'<a href="{attr(r.url)}">{t}</a>'
+        out.append(t)
+    return ''.join(out) or '&nbsp;'
+
+
+def handout_text(el, role):
+    if role == 'code':
+        return '<pre class="ho-code">' + '\n'.join(
+            ''.join(esc(r.text) for r in p.runs) for p in el.paras) + '</pre>'
+    out, bullets = [], []
+
+    def flush():
+        if bullets:
+            out.append('<ul>' + ''.join(f'<li>{b}</li>' for b in bullets) + '</ul>')
+            bullets.clear()
+
+    for para in el.paras:
+        body = handout_runs(para, role)
+        if body == '&nbsp;':
+            continue
+        if para.bullet:
+            bullets.append(body)
+            continue
+        flush()
+        tag = {'eyebrow': 'p class="ho-eyebrow"', 'label': 'p class="ho-label"',
+               'h2': 'h2', 'h3': 'h3'}.get(role, 'p')
+        out.append(f'<{tag}>{body}</{tag.split()[0]}>')
+    flush()
+    return ''.join(out)
+
+
+def handout_slide(s, i, assets_out, assets_rel):
+    parts = [f'<article class="ho-slide" id="ho-{i}"><span class="ho-n">{i}</span>']
+    pending = ''          # a bare choice letter waits for the choice it labels
+    for el in s.els + s.html_only:
+        if (el.name or '').startswith('chrome') or el.kind == 'rect':
+            continue
+        if el.kind == 'text':
+            role = _role(el)
+            if role == 'skip':
+                continue
+            flat = _plain(el)
+            if role in ('label', 'eyebrow') and LABEL_PREFIX.fullmatch(flat):
+                pending = flat
+                continue
+            if pending:
+                # A section divider is a number and then a title; merging the two would
+                # cost the slide its heading. Only fold a label into ordinary text.
+                if role in ('h2', 'h3'):
+                    parts.append(f'<p class="ho-label">{esc(pending)}</p>')
+                    pending = ''
+                else:
+                    parts.append(f'<p class="ho-choice"><b>{esc(pending)}</b> '
+                                 f'{handout_runs(el.paras[0])}</p>')
+                    pending = ''
+                    if len(el.paras) > 1:
+                        parts.append(handout_text(
+                            Text(el.x, el.y, el.w, el.h, el.paras[1:], el.valign), role))
+                    continue
+            parts.append(handout_text(el, role))
+        elif el.kind == 'image':
+            parts.append(f'<img src="{assets_rel}/{copy_asset(el.src, assets_out)}" alt="">')
+        elif el.kind == 'figure':
+            parts.append(f'<div class="ho-fig">{el.svg}</div>')
+        elif el.kind == 'embed':
+            parts.append(f'<p><a href="https://www.youtube.com/watch?v={esc(el.yt)}">'
+                         f'Watch on YouTube &rsaquo;</a></p>')
+        elif el.kind == 'exercise':
+            # the widget itself is not duplicated — handout.js moves the one in the deck
+            # into this slot, so ids and saved answers cannot diverge between the views
+            parts.append(f'<div class="ho-ex" data-for="{attr(el.eid)}"></div>')
+    if pending:
+        parts.append(f'<p class="ho-label">{esc(pending)}</p>')
+    if s.cp:
+        label = s.cp['type'].replace('_', ' ')
+        parts.append(f'<p class="ho-cp">ClassPoint &middot; {esc(label)} &mdash; answer on the projector</p>')
+    parts.append('</article>')
+    return '\n'.join(parts)
+
+
 def copy_asset(src, assets_out):
     """Copy an image into the html assets dir (downscaled to <= 1920px, jpeg where possible)."""
     from PIL import Image as PImage
@@ -534,12 +719,15 @@ def build_html(deck, out_dir: Path):
     # only ship the runtime if the deck can use it
     live = deck.get('console', True) and any(
         el.kind == 'exercise' for sl in deck['slides'] for el in sl.els + sl.html_only)
+    handout = '\n'.join(handout_slide(sl, i + 1, assets_out, 'assets')
+                        for i, sl in enumerate(deck['slides']))
     pyodide = ''
     if live:
         url = deck.get('pyodide_url') or PYODIDE_CDN.format(v=deck.get('pyodide_version', PYODIDE_VERSION))
         pyodide = PYODIDE_HTML.format(pyodide_url=url)
     css = CSS.replace('__CODE__', str(CODE)).replace('__CODE_SMALL__', str(CODE_SMALL))
-    html = HTML_TMPL.format(title=esc(deck['title']), css=css, slides=slides, pyodide=pyodide)
+    html = HTML_TMPL.format(title=esc(deck['title']), css=css, slides=slides,
+                            handout=handout, pyodide=pyodide)
     (out_dir / 'index.html').write_text(html, encoding='utf-8')
     vendor = out_dir.parent / 'vendor'
     (vendor / 'fonts').mkdir(parents=True, exist_ok=True)
@@ -548,6 +736,7 @@ def build_html(deck, out_dir: Path):
     if live:
         for f in ('pyodide-console.js', 'pyodide-runtime.py'):
             shutil.copy(JS_DIR / f, vendor / f)
+    shutil.copy(JS_DIR / 'handout.js', vendor / 'handout.js')   # every deck gets it
     return out_dir / 'index.html'
 
 

@@ -151,13 +151,43 @@ afterwards in the student's namespace, with the captured stdout bound to `_out`;
 Code everywhere — `exercise`, `code_panel`, `two_col`'s right panel, `question(example=…)`
 — is set at `deckgen.CODE` (30 px = 15 pt), one size across every layout.
 
+## On a phone
+
+reveal.js fits the 1920×1080 canvas to the viewport, so on a 390px screen the body text
+lands at about **7px** and the exercise box is too small to type in. Scaling cannot fix
+that, so every deck also carries a **reading view**: the same slides, reflowed into a
+single readable column.
+
+- **Automatic** on a narrow viewport, or portrait on a touch device. A **Reading view**
+  button appears below 900px, and the deck has a **Deck view** button back.
+- **The choice is remembered.** Until one is made, rotating to landscape returns the deck.
+- **Exercises are moved, not copied.** There is one widget per exercise in the document
+  and it is relocated between the two views, so its id, its saved answer and its pass/fail
+  state cannot diverge. The editor is set at 16px there, which is the threshold below
+  which iOS zooms on focus.
+- **Printing always gets the deck**, whatever the device or the saved choice — the PDF is
+  produced from this same page.
+
+The reading view is built from the same slide data, with roles inferred from what the
+layouts already encode: size, font, caps, bullets. Code is the exception — it is declared
+by the layout (`name='code'`), because inferring it from "monospaced and biggish" turned
+agenda numbers, timeline years and quote attributions into code blocks. Short mono labels
+— a choice letter, an agenda number, a start time — are folded into the line they label,
+except where that would cost a slide its heading.
+
+It is a reading and exercise surface, not a reproduction of the deck: decorative rules and
+panels are dropped, and images keep their place but not their composition.
+
 ## Tests
 
 ```bash
 python tests/runtime.test.py     # the Python half, against the real interpreter
 npm install --no-save jsdom
-DECK_HTML=… DECK_JS=… node tests/wiring.test.js    # the DOM half, Pyodide stubbed
+node tests/wiring.test.js        # the DOM half, Pyodide stubbed
+node tests/handout.test.js       # the reading view: switching, and moving the widgets
 ```
+
+Both JS suites build `tests/fixture/` themselves, so they need `deckgen` on `PATH`.
 
 `runtime.test.py` needs nothing but CPython — Pyodide runs the same interpreter, so what
 passes there passes in the browser. `wiring.test.js` drives a built deck with a stubbed

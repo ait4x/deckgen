@@ -438,7 +438,8 @@ def two_col(eyebrow_text, title_text, left, right, notes='', bg=WHITE, right_bg=
         T(M, TITLE_Y, 800, 260, title_text, 'xbold', 72, t, lh=0.95, spc=-0.03),
         Text(M, 480, 800, 470, body_paras(left, 34, b, lh=1.4), 't'),
         Rect(1000, TITLE_Y, 800, 766, right_bg),
-        Text(1040, TITLE_Y + 40, 720, 690, body_paras(right, right_size, INK if right_bg != INK else LIGHT_ON_INK, lh=1.5, gap=0, font=right_font), 't'),
+        Text(1040, TITLE_Y + 40, 720, 690, body_paras(right, right_size, INK if right_bg != INK else LIGHT_ON_INK, lh=1.5, gap=0, font=right_font), 't',
+             name='code' if right_font == 'mono' else ''),
     ]
     return s
 
@@ -452,7 +453,7 @@ def code_panel(eyebrow_text, title_text, lines, notes='', bg=WHITE, caption=None
         T(M, TITLE_Y, CW, 140, title_text, 'xbold', 72, t, lh=0.95, spc=-0.03),
         Rect(M, 372, CW, 520 if caption else 580, PAPER if bg is not PAPER else WHITE),
         Text(M + 40, 412, CW - 80, 500, [Para([runs(ln or ' ', 'mono', CODE, INK)[0]], 'l', 1.45)
-                                         for ln in lines], 't'),
+                                         for ln in lines], 't', name='code'),
     ]
     if caption:
         s.els.append(T(M, 916, CW, 60, caption, 'body', 30, m, lh=1.3))
