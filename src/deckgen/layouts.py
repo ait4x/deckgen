@@ -108,7 +108,9 @@ def agenda(eyebrow_text, items, notes='', title_text='Today'):
         y = 372 + row * 140
         s.els += [
             T(x, y + 10, 62, 56, f'{i + 1:02d}', 'monomed', 28, ORANGE, lh=1.2),
-            T(x + 92, y, 700, 76, label, 'body', 36, INK, lh=1.2, valign='m'),
+            # 88px, not 76: two lines at 36/1.2 are 86.4px, and an agenda item that wraps
+            # is normal. Raised by 6 so the centre stays put and one-line items do not move.
+            T(x + 92, y - 6, 700, 88, label, 'body', 36, INK, lh=1.2, valign='m'),
             Rect(x, y + 92, 800, 2, LINE),
         ]
     return s
