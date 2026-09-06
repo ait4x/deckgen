@@ -5,3 +5,5 @@ __pycache__/
 dist/
 build/
 .DS_Store
+tests/fixture/_site/
+tests/fixture/export/

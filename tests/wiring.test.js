@@ -4,10 +4,20 @@
 const { JSDOM } = require('jsdom');
 const fs = require('fs');
 
-const DECK = process.env.DECK_HTML || '/tmp/extest/_site/t/index.html';
-const RT = process.env.DECK_JS || '/tmp/extest/_site/vendor/pyodide-console.js';
-const html = fs.readFileSync(DECK, 'utf8');
-const js = fs.readFileSync(RT, 'utf8');
+const path = require('path');
+const { execFileSync } = require('child_process');
+
+// The fixture in tests/fixture/ is built here rather than pointed at, so the suite is
+// self-contained and the exercise ids below are guaranteed to be the ones it asserts on.
+const FIX = path.join(__dirname, 'fixture');
+try {
+  execFileSync('deckgen', ['build', '--site', '--no-pdf'], { cwd: FIX, stdio: 'pipe' });
+} catch (e) {
+  console.error('could not build the fixture — is deckgen on PATH?\n' + (e.stderr || e.message));
+  process.exit(1);
+}
+const html = fs.readFileSync(path.join(FIX, '_site/t/index.html'), 'utf8');
+const js = fs.readFileSync(path.join(FIX, '_site/vendor/pyodide-console.js'), 'utf8');
 
 const dom = new JSDOM(html, { url: 'http://x/t/', runScripts: 'outside-only', pretendToBeVisual: true });
 const w = dom.window;

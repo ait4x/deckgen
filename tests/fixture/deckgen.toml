@@ -1,0 +1,7 @@
+# The deck tests/wiring.test.js drives. Small on purpose: two exercises, one that
+# checks stdout and one that runs a check, so the harness covers both paths.
+[course]
+code = "FIXTURE"
+name = "Wiring fixture"
+year = "2026/27"
+decks = ["t"]
