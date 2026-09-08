@@ -595,7 +595,9 @@ def code_panel(eyebrow_text, title_text, lines, notes='', bg=WHITE, caption=None
         eyebrow(M, 96, eyebrow_text, m),
         T(M, TITLE_Y, CW, 140, title_text, 'xbold', 72, t, lh=0.95, spc=-0.03),
         Rect(M, 372, CW, 520 if caption else 580, PAPER if bg is not PAPER else WHITE),
-        Text(M + 40, 412, CW - 80, 500, [Para([runs(ln or ' ', 'mono', CODE, INK)[0]], 'l', 1.45)
+        # every run, not runs(...)[0] — a highlighted span mid-line used to take the
+        # rest of the line with it
+        Text(M + 40, 412, CW - 80, 500, [Para(runs(ln or ' ', 'mono', CODE, INK), 'l', 1.45)
                                          for ln in lines], 't', name='code'),
     ]
     if caption:

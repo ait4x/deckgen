@@ -6,12 +6,17 @@ JavaScript side only ever calls a function with strings. Keeping PyProxy objects
 of the JS is deliberate: their lifetimes have to be managed by hand, and a leak in a
 lecture is a laptop that stops responding halfway through class.
 """
+import ast
 import io
 import json
 import sys
 import traceback
 
 _dg_console_ns = {}          # the console keeps its state between lines
+
+# Filenames the student's own code is compiled under. Everything else in a
+# traceback is our scaffolding and gets cut.
+_DG_SOURCES = ('<your code>', '<console>', '<check>')
 
 
 def _dg_capture(fn):
@@ -24,8 +29,14 @@ def _dg_capture(fn):
     try:
         value = fn()
     except BaseException:
-        # limit=-2 keeps the student's own frame and drops our exec scaffolding
-        err = ''.join(traceback.format_exception(*sys.exc_info())[-2:]).rstrip()
+        # Drop our exec scaffolding and keep everything from the student's own frame
+        # down. Slicing a fixed count off the end was not enough: a SyntaxError puts its
+        # source line and its caret in separate entries, so the tail alone was a caret
+        # pointing at nothing. Reading the traceback is the week-2 lesson — show it whole.
+        parts = traceback.format_exception(*sys.exc_info())
+        mine = next((i for i, f in enumerate(parts)
+                     if any(('"%s"' % n) in f for n in _DG_SOURCES)), None)
+        err = ''.join(parts[mine:] if mine is not None else parts[-2:]).rstrip()
     finally:
         sys.stdout, sys.stderr = old_out, old_err
     return value, buf.getvalue(), err
@@ -43,7 +54,7 @@ def _dg_run(src, check, expect):
     check = check if isinstance(check, str) else ''
     expect = expect if isinstance(expect, str) else None
     ns = {}
-    _, out, err = _dg_capture(lambda: exec(src, ns))
+    _, out, err = _dg_capture(lambda: exec(compile(src, '<your code>', 'exec'), ns))
     ok, msg = None, ''
     if not err and expect is not None:
         ok = out.strip() == expect.strip()
@@ -53,7 +64,7 @@ def _dg_run(src, check, expect):
         ns['_out'] = out
         ns['ok'] = False
         ns['msg'] = ''
-        _, _, cerr = _dg_capture(lambda: exec(check, ns))
+        _, _, cerr = _dg_capture(lambda: exec(compile(check, '<check>', 'exec'), ns))
         if cerr:
             ok, msg = False, 'the check itself failed:\n' + cerr
         else:
@@ -63,16 +74,29 @@ def _dg_run(src, check, expect):
 
 
 def _dg_eval(src):
-    """One console line. Echoes the repr of an expression, the way a REPL does."""
+    """One console entry — a single line, or a whole block pasted in at once.
+
+    A REPL echoes the value of a trailing expression, so the entry is split rather than
+    compiled whole: everything but the last statement is exec'd, and the last one is
+    eval'd when it is an expression. Compiling the sliced tree instead of re-parsing a
+    slice of the text keeps the original line numbers in any traceback.
+    """
     def go():
-        try:
-            code = compile(src, '<console>', 'eval')
-        except SyntaxError:
-            exec(compile(src, '<console>', 'exec'), _dg_console_ns)
-        else:
-            value = eval(code, _dg_console_ns)
+        tree = ast.parse(src, '<console>', 'exec')
+        if not tree.body:
+            return
+        head, last = tree.body[:-1], tree.body[-1]
+        if head:
+            exec(compile(ast.Module(body=head, type_ignores=[]), '<console>', 'exec'),
+                 _dg_console_ns)
+        if isinstance(last, ast.Expr):
+            value = eval(compile(ast.Expression(last.value), '<console>', 'eval'),
+                         _dg_console_ns)
             if value is not None:
                 print(repr(value))
+        else:
+            exec(compile(ast.Module(body=[last], type_ignores=[]), '<console>', 'exec'),
+                 _dg_console_ns)
     _, out, err = _dg_capture(go)
     return json.dumps({'out': out, 'err': err})
 

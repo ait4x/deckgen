@@ -40,6 +40,16 @@ r = json.loads(run('print(', '', '1'))
 check('syntax error is reported, not raised', 'SyntaxError' in r['err'] and r['ok'] is None)
 r = json.loads(run('1/0', '', '1'))
 check('runtime error is reported', 'ZeroDivisionError' in r['err'])
+
+# reading the traceback is the week-2 lesson, so it has to name the line and show the
+# source — and it must not leak the runtime's own frames
+r = json.loads(run('def f(xs):\n    return sum(xs) / len(xs)\n\nprint(f([]))', '', None))
+check('traceback names the student\'s lines',
+      'line 4, in <module>' in r['err'] and 'line 2, in f' in r['err'])
+check('traceback hides the scaffolding',
+      '_dg_capture' not in r['err'] and '<lambda>' not in r['err'])
+r = json.loads(run('print(', '', None))
+check('a syntax error shows the source line', 'print(' in r['err'] and '^' in r['err'])
 r = json.loads(run('print(1)', 'ok = undefined_name', None))
 check('a broken check blames itself', r['ok'] is False and 'the check itself failed' in r['msg'])
 
@@ -74,6 +84,20 @@ check('console remembers', json.loads(ev('x * 2'))['out'].strip() == '42')
 check('console reprs strings', json.loads(ev('"hi"'))['out'].strip() == "'hi'")
 check('console runs statements', json.loads(ev('for i in range(2): print(i)'))['out'] == '0\n1\n')
 check('console reports NameError', 'NameError' in json.loads(ev('nope'))['err'])
+
+# a whole block pasted in at once: everything runs, and a trailing expression still echoes
+BLOCK = 'rows = [1, 2, 3]\ntotal = 0\nfor r in rows:\n    total += r\ntotal'
+check('console runs a pasted block', json.loads(ev(BLOCK))['out'].strip() == '6')
+check('console keeps the block\'s names', json.loads(ev('rows'))['out'].strip() == '[1, 2, 3]')
+DEF = 'def double(x):\n    return x * 2\n\nprint(double(21))'
+check('console defines and calls', json.loads(ev(DEF))['out'].strip() == '42')
+check('a block ending in a statement is quiet',
+      json.loads(ev('a = 1\nb = 2'))['out'] == '')
+r = json.loads(ev('x = 1\ny = 0\nprint(x / y)'))
+check('a block reports the line that failed', 'ZeroDivisionError' in r['err'])
+r = json.loads(ev('for i in range(3):'))
+check('an unfinished block is reported, not a crash',
+      'IndentationError' in r['err'] and 'for i in range(3):' in r['err'])
 reset()
 check('console reset clears state', 'NameError' in json.loads(ev('x'))['err'])
 
