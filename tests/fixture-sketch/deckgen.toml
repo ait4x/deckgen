@@ -1,0 +1,7 @@
+# The deck tests/sketch.test.js and tests/sketch.test.py drive. Its own fixture, because
+# building it makes stills with Chromium, which the jsdom suites must not need.
+[course]
+code = "SKETCH"
+name = "Sketch fixture"
+year = "2026/27"
+decks = ["s"]

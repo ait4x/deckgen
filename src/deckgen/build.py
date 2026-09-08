@@ -1,8 +1,9 @@
 """
 Build a course repo: every deck in `[course].decks`, then the documents.
 
-    from deckgen.build import build_repo
+    from deckgen.build import build_repo, snapshot
     build_repo(site=True, pptx=True)
+    snapshot(force=True)          # `deckgen snap --force`: redo the stills of the live sketches
 
 `_site/` gets the landing page and the repo's `site/` overlay, the reveal.js vendor
 bundle that ships with the package, one folder per deck (html + assets + PDF), and
@@ -42,8 +43,9 @@ def stage_site(proj: Project):
     (proj.site / '.nojekyll').touch()
 
 
-def build_repo(site=True, pptx=True, pdf=True, decks=None) -> list[str]:
-    """Build the repo. Returns the layout warnings (text that overflows its box)."""
+def build_repo(site=True, pptx=True, pdf=True, decks=None, snap=False) -> list[str]:
+    """Build the repo. Returns the layout warnings (text that overflows its box, a sketch with no still).
+    snap: redo the stills of the live sketches first (deck/assets/sketches, committed)."""
     proj = current()
     if site:
         stage_site(proj)
@@ -52,7 +54,7 @@ def build_repo(site=True, pptx=True, pdf=True, decks=None) -> list[str]:
         mod = load_deck(proj, name)
         footer = getattr(mod, 'FOOTER', None) or proj.footer
         out = core.build_all(mod.DECK, name, footer,
-                             do_pptx=pptx, do_html=site, do_png=True, do_pdf=site and pdf)
+                             do_pptx=pptx, do_html=site, do_png=True, do_pdf=site and pdf, snap=snap)
         n = len(mod.DECK['slides'])
         cp = sum(1 for s in mod.DECK['slides'] if s.cp)
         made = [str(out[k].relative_to(proj.root)) for k in ('html', 'pdf', 'classpoint') if k in out]
@@ -65,3 +67,21 @@ def build_repo(site=True, pptx=True, pdf=True, decks=None) -> list[str]:
         files = [f for f in proj.site.rglob('*') if f.is_file()]
         print(f'_site: {len(files)} files, {sum(f.stat().st_size for f in files) / 1e6:.1f} MB')
     return problems
+
+
+def snapshot(decks=None, force=False) -> int:
+    """`deckgen snap`: the stills of the live sketches, into deck/assets/sketches/ (committed: the
+    PowerPoint workflow has no browser). 1 when a still could not be made, or nothing can make one."""
+    proj = current()
+    if core.playwright_env() is None:
+        print('node + playwright + Chromium are needed to make the stills (see README: the PDF step)')
+        return 1
+    failed = 0
+    for name in (decks or proj.decks):
+        mod = load_deck(proj, name)
+        wanted = [el for el in core.sketches_of(mod.DECK) if el.twin and (force or not core.twin_png(el.name).exists())]
+        made = core.snapshot_sketches(mod.DECK, name, force=force)
+        failed += len(wanted) - len(made)
+        missing = [el.name for el in core.sketches_of(mod.DECK) if el.twin and not core.twin_png(el.name).exists()]
+        print(f'{name}: {len(made)} still(s) made' + (f', still missing: {missing}' if missing else ''))
+    return 1 if failed else 0

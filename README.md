@@ -39,7 +39,8 @@ deckgen build --pptx
 ```
 deckgen.toml           the course: code, name, year, footer, which decks, what to publish
 deck/week01.py         the slides as one Python spec — edit here, every output updates
-deck/assets/           images (deck/assets/generated/ is built, git-ignored)
+deck/assets/           images (deck/assets/generated/ is built, git-ignored; deck/assets/sketches/
+                       holds the stills of the live sketches, made by `deckgen snap`, committed)
 deck/figures.py        course-specific drawn figures, on deckgen.figures.Canvas (optional)
 syllabus/*.md          published if listed under [[publish]]
 lessons/*.md           .docx + html into export/docs/, not published
@@ -79,7 +80,8 @@ DECK = {'title': 'Week 2', 'pdf': 'SD0000-week02.pdf', 'slides': [
 
 Layouts: `title` `agenda` `section` `statement` `quote` `content` `cards` `question`
 `image_full` `image_grid` `timeline` `journey` `activity` `video` `assessment` `team`
-`team_band` `two_col` `figure_slide` `end`. Inline markup in any string: `**bold**`,
+`team_band` `two_col` `code_panel` `code_slide` `figure_slide` `sketch_slide` `exercise`
+`end`. Inline markup in any string: `**bold**`,
 `[text](url)`, `{orange:…}` `{teal:…}` `{muted:…}` `{mono:…}` and the other palette names.
 
 ClassPoint activities come from `question(kind, …)` — `word_cloud`, `short_answer`,
@@ -103,7 +105,8 @@ substitutes Arial.
 ## Command line
 
 ```
-deckgen build [--site] [--pptx] [--no-pdf] [DECK ...]
+deckgen build [--site] [--pptx] [--no-pdf] [--snap] [DECK ...]
+deckgen snap [--force] [DECK ...]   stills of the live sketches (deck/assets/sketches/)
 deckgen init [DIR]              scaffold a course repo
 deckgen template [OUT]          write the ait4x .potx: master + the 8 layouts
 deckgen --root PATH ...         act on a repo elsewhere
@@ -203,6 +206,49 @@ slide keeps its place in the count and simply gets no link.
 Writing the file is [`classpoint.py`](https://github.com/venetanji/classpoint.py)'s job —
 it reads the activity ids back out of ClassPoint after class.
 
+## Live p5.js sketches
+
+Any slide can run a p5.js sketch, live, in the html deck: `live(name, code, w, h, hint=…,
+extra=…, sound=False)` placed with `sketch_slide(…)` (full width), or as the media of
+`content(…, sketch=)`, `figure_slide(…, sketch=)`, `code_slide(…, sketch=)` and
+`activity(…, sketch=)`.
+
+```python
+from deckgen.layouts import code_slide, live
+
+TEN = '''function setup() {
+  createCanvas(600, 600);
+  for (let i = 0; i < 10; i++) circle(random(600), random(600), 8);
+}'''
+
+code_slide('03 · TEN POINTS', 'Ten points at random', TEN,
+           sketch=live('ten', TEN, 600, 600, hint='click to redraw',
+                       extra='function mousePressed() { redraw(); }'))
+```
+
+- **The page under the iframe** (`_site/<deck>/sketches/<name>.html`) scales the canvas to
+  its frame while keeping `mouseX`/`mouseY` right, so mouse, touch and keyboard interaction
+  just work under reveal's own scaling. The deck's navigation keys (arrows, space, Esc, S, O,
+  F) still reach reveal.js when the sketch has the focus; `R` restarts the sketch. A sketch
+  that uses a key itself returns `false` from `keyPressed()`.
+- **A LIVE chip** with the `hint` tells the room what to do, then fades. Its ↗ opens the
+  sketch on its own page, which gets a title bar. The reading view links the same page.
+- **`code`** is what the students see on the slide (keep it short and readable); **`extra`**
+  is JavaScript appended only in the page, for the interaction the code panel does not show.
+  `sound=True` also loads p5.sound. p5.js and p5.sound are in the vendor bundle, so the deck
+  runs offline in the classroom.
+- **The PowerPoint and the PDF cannot run code**, so every sketch has a still twin: the
+  `figure=` you pass (the Python drawing of the same rule), or the snapshot in
+  `deck/assets/sketches/<name>.png` made by `deckgen snap` — 1.5 s after load, mouse resting
+  at 60 % / 40 % of the canvas, no click: design the sketch so that state looks right.
+  Snapshots are committed, because the PowerPoint workflow has no browser; a missing one shows
+  as a labelled box and fails the build. `deckgen build --snap` remakes them first. A page that
+  makes no canvas (an error before `createCanvas`) writes no still, so a committed one is never
+  replaced by a blank image.
+- **`code_slide`** sets the code at `deckgen.CODE` when it fits the half-width panel, and steps
+  down to `CODE_SMALL` or 22 px when it does not; a line too wide even then is an error, not a
+  wrap.
+
 ## On a phone
 
 reveal.js fits the 1920×1080 canvas to the viewport, so on a 390px screen the body text
@@ -239,10 +285,13 @@ npm install --no-save jsdom
 node tests/wiring.test.js        # the DOM half, Pyodide stubbed
 node tests/handout.test.js       # the reading view: switching, and moving the widgets
 node tests/browser.test.js       # the whole thing: real Chromium, real Pyodide, real phone
+python tests/sketch.test.py      # live sketches: the twin, the geometry, a build with no still
+node tests/sketch.test.js        # live sketches in Chromium: mouse mapping, key relay, chip, print, snap
 ```
 
-All three JS suites build `tests/fixture/` themselves, so they need `deckgen` on `PATH`.
-`browser.test.js` additionally needs Playwright's Chromium; on Arch that means
+The JS suites build `tests/fixture/` (and `sketch.test.js` its own `tests/fixture-sketch/`)
+themselves, so they need `deckgen` on `PATH`. `browser.test.js` and `sketch.test.js`
+additionally need Playwright's Chromium; on Arch that means
 `nss nspr at-spi2-core libxcomposite libxdamage libxrandr libxkbcommon libcups`.
 
 **Run `browser.test.js` before shipping a change to the runtime or the reading view.** It
