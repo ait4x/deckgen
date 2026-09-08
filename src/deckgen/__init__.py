@@ -28,11 +28,11 @@ from .project import Project, configure, current, find_config
 from .reports import attach_reports, activity_url, links as report_links
 from .core import (
     # element model
-    Slide, Run, Para, Text, Rect, Image, Figure, Embed,
+    Slide, Run, Para, Text, Rect, Image, Figure, Embed, Sketch, Exercise,
     # authoring helpers
     T, P, runs, eyebrow, pil_font, text_height,
-    # geometry
-    W, H, PX, PT, FONTS,
+    # geometry, and the one size for code
+    W, H, PX, PT, FONTS, CODE, CODE_SMALL,
     # tokens
     INK, WHITE, PAPER, GRAY, TEAL, TXT, MUTED, LINE, LINE_STRONG,
     ORANGE, VIOLET, PINK, YELLOW, GREEN, BLUE, DEEP_TEAL, RED,
@@ -46,9 +46,9 @@ __version__ = '0.1.0'
 __all__ = [
     'Project', 'configure', 'current', 'find_config',
     'attach_reports', 'activity_url', 'report_links',
-    'Slide', 'Run', 'Para', 'Text', 'Rect', 'Image', 'Figure', 'Embed',
+    'Slide', 'Run', 'Para', 'Text', 'Rect', 'Image', 'Figure', 'Embed', 'Sketch', 'Exercise',
     'T', 'P', 'runs', 'eyebrow', 'pil_font', 'text_height',
-    'W', 'H', 'PX', 'PT', 'FONTS',
+    'W', 'H', 'PX', 'PT', 'FONTS', 'CODE', 'CODE_SMALL',
     'INK', 'WHITE', 'PAPER', 'GRAY', 'TEAL', 'TXT', 'MUTED', 'LINE', 'LINE_STRONG',
     'ORANGE', 'VIOLET', 'PINK', 'YELLOW', 'GREEN', 'BLUE', 'DEEP_TEAL', 'RED',
     'MUTED_ON_INK', 'LIGHT_ON_INK', 'YELLOWS', 'VIOLETS', 'TEALS', 'ORANGES', 'PINKS',

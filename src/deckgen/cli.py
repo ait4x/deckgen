@@ -1,7 +1,8 @@
 """
 `deckgen` on the command line.
 
-    deckgen build [--site] [--pptx] [--no-pdf] [DECK ...]
+    deckgen build [--site] [--pptx] [--no-pdf] [--snap] [DECK ...]
+    deckgen snap [--force] [DECK ...]   stills of the live sketches (deck/assets/sketches, committed)
     deckgen init [DIR]          scaffold a course repo (deckgen.toml, deck/, workflows)
     deckgen template [OUT]      write the ait4x .potx: master + the 8 layouts
 
@@ -28,8 +29,15 @@ def cmd_build(args):
     problems = build_repo(site=args.site or not explicit,
                           pptx=args.pptx or not explicit,
                           pdf=not args.no_pdf,
-                          decks=args.decks or None)
+                          decks=args.decks or None,
+                          snap=args.snap)
     return 1 if problems else 0
+
+
+def cmd_snap(args):
+    from .build import snapshot
+    configure(args.root)
+    return snapshot(decks=args.decks or None, force=args.force)
 
 
 def cmd_template(args):
@@ -69,8 +77,14 @@ def main(argv=None):
     b.add_argument('--site', action='store_true', help='_site/ only: html decks, PDFs, published markdown')
     b.add_argument('--pptx', action='store_true', help='export/ only: PowerPoints, manifests, docx, previews')
     b.add_argument('--no-pdf', action='store_true', help='skip the Chromium PDF step (no node needed)')
+    b.add_argument('--snap', action='store_true', help='redo the stills of the live sketches first (needs node + playwright)')
     b.add_argument('decks', nargs='*', help='deck names; default: [course].decks in deckgen.toml')
     b.set_defaults(fn=cmd_build)
+
+    sn = sp.add_parser('snap', help='screenshot the live sketches into deck/assets/sketches (what the pptx and the PDF show)')
+    sn.add_argument('--force', action='store_true', help='redo the stills that exist')
+    sn.add_argument('decks', nargs='*', help='deck names; default: [course].decks in deckgen.toml')
+    sn.set_defaults(fn=cmd_snap)
 
     t = sp.add_parser('template', help='write the ait4x PowerPoint template (.potx)')
     t.add_argument('out', nargs='?')
