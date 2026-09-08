@@ -3,7 +3,7 @@ deckgen — one slide spec, three outputs.
 
 A deck is a plain Python structure (see the course repo's deck/*.py). Every slide is
 laid out once, on a 1920 x 1080 px canvas, into a list of primitive
-elements (text, rect, line, image, figure, embed). Three backends then
+elements (text, rect, image, figure, embed, sketch, exercise). Three backends then
 render the same elements:
 
   html   — a reveal.js deck for GitHub Pages (_site/<deck>/index.html)
@@ -24,6 +24,7 @@ import os
 import re
 import shutil
 import subprocess
+import time
 import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -33,6 +34,7 @@ from .project import current
 HERE = Path(__file__).resolve().parent
 FONT_DIR = HERE / 'fonts'      # Inter + JetBrains Mono ship with the package
 JS_DIR = HERE / 'js'
+SCAFFOLD_SITE = HERE / 'scaffold' / 'site'   # the vendor bundle (reveal.js, p5) staged into _site/
 W, H = 1920, 1080
 PX = 6350  # EMU per px on a 1920x1080 (13.333 x 7.5 in) slide
 PT = 0.5   # points per design px on that slide (1920 px = 13.333 in = 960 pt)
@@ -117,6 +119,7 @@ class Image:
     src: str                # path relative to deck/assets or absolute
     fit: str = 'cover'      # cover | contain
     name: str = ''
+    placeholder: str = ''   # drawn instead when the file is missing (the still of a sketch not made yet)
     kind: str = 'image'
 
 
@@ -138,6 +141,30 @@ class Embed:
     thumb: str | None = None
     name: str = ''
     kind: str = 'embed'
+
+
+@dataclass
+class Sketch:
+    """A live, interactive p5.js sketch, html only: an iframe laid over the twin that stands in
+    for it in the pptx and the PDF (a drawn figure, or the still in deck/assets/sketches made by
+    `deckgen snap`). p5 ships in the vendor bundle, so the deck also runs offline. The page scales
+    the canvas to the frame (mouseX/mouseY stay right), forwards the deck's navigation keys to
+    reveal.js, restarts on R, and shows a title bar when opened on its own."""
+    x: int; y: int; w: int; h: int
+    name: str               # file name of the page (<deck>/sketches/<name>.html) and of the still
+    code: str               # the sketch, as the students see it on the slide
+    cw: int = 600           # the sketch's own canvas size; the page scales it to the frame
+    ch: int = 600
+    hint: str = ''          # what to do with it, shown in the LIVE chip: 'move the mouse · click to reseed'
+    extra: str = ''         # js appended after the code (interaction the slide's code panel does not show)
+    sound: bool = False     # also load p5.sound (oscillators, the microphone, playback)
+    twin: bool = True       # False when a drawn figure stands in for it (no still needed)
+    kind: str = 'sketch'
+
+
+def twin_png(name):
+    """Where `deckgen snap` puts the still of a sketch (the pptx / PDF stand-in): deck/assets/sketches/<name>.png."""
+    return current().sketches / f'{name}.png'
 
 
 @dataclass
@@ -289,8 +316,8 @@ def wrap_para(para, width):
                 lines.append(cur); cur, cur_w = [], 0.0
                 if not wd.strip():
                     continue
-            if not cur and not wd.strip():
-                continue
+            if not cur and not wd.strip() and lines:
+                continue          # drop the whitespace a wrap lands on; keep a paragraph's own indentation (code)
             cur.append((frag, wd)); cur_w += fw
     if cur:
         lines.append(cur)
@@ -330,7 +357,13 @@ html,body{background:#000B1C}
 .cp{position:absolute;left:1450px;top:908px;width:350px;height:92px;border:2px dashed #ED6D24;color:#ED6D24;font:500 22px/1 var(--font-m);letter-spacing:.14em;text-transform:uppercase;display:flex;align-items:center;justify-content:center;gap:12px}
 .cp b{width:12px;height:12px;border-radius:50%;background:#ED6D24;display:inline-block}
 .embed .print-only{display:none}
-@media print{.cp{display:none}.embed iframe{display:none}.embed .print-only{display:block;width:100%;height:100%;object-fit:cover}}
+.embed.sketch{background:#fff}
+.embed.sketch .live{position:absolute;right:0;bottom:0;max-width:100%;box-sizing:border-box;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:#000B1C;color:#fff;font:500 17px/1 var(--font-m);letter-spacing:.12em;text-transform:uppercase;padding:10px 14px;display:flex;align-items:center;gap:12px;pointer-events:none;opacity:.92;transition:opacity .5s}
+.embed.sketch .live.dim{opacity:.14}
+.embed.sketch .live b{width:10px;height:10px;border-radius:50%;background:#ED6D24;display:inline-block;animation:pulse 1.6s infinite}
+.embed.sketch .live a{color:#fff;text-decoration:none;pointer-events:auto;padding:0 4px;font-size:22px}
+@keyframes pulse{50%{opacity:.35}}
+@media print{.cp{display:none}.embed iframe{display:none}.embed.sketch{display:none!important}.embed .print-only{display:block;width:100%;height:100%;object-fit:cover}}
 .reveal .progress{height:4px;color:#ED6D24}
 .reveal .backgrounds{background:#000B1C}
 
@@ -468,9 +501,78 @@ Reveal.initialize({{width:1920,height:1080,margin:0,minScale:0.05,maxScale:4,cen
   // phone gave two of every exercise — duplicate ids, and Run doing nothing on whichever
   // copy the browser resolved first. The reading view is our answer to small screens.
   scrollActivationWidth:null}});
+// the LIVE chip on a sketch shows its hint for four seconds, then fades so it does not cover the picture
+var dimTimer = null;
+function chips() {{
+  clearTimeout(dimTimer);
+  document.querySelectorAll('.live').forEach(function (c) {{ c.classList.remove('dim'); }});
+  dimTimer = setTimeout(function () {{ document.querySelectorAll('.present .live').forEach(function (c) {{ c.classList.add('dim'); }}); }}, 4000);
+}}
+Reveal.on('ready', chips); Reveal.on('slidechanged', chips);
+// a live sketch that has the keyboard focus relays the deck's navigation keys (SKETCH_TMPL in deckgen.core)
+addEventListener('message', function (e) {{
+  var d = e.data; if (!d || d.deckgen !== 'key') return;
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();   // the deck takes the keyboard back
+  window.focus();
+  var k = d.key;
+  if (k === 'ArrowRight' || k === 'ArrowDown' || k === 'PageDown' || (k === ' ' && !d.shift)) Reveal.next();
+  else if (k === 'ArrowLeft' || k === 'ArrowUp' || k === 'PageUp' || (k === ' ' && d.shift)) Reveal.prev();
+  else if (k === 'Home') Reveal.slide(0);
+  else if (k === 'End') Reveal.slide(Reveal.getTotalSlides() - 1);
+  else if (k === 'Escape' || k === 'o' || k === 'O') Reveal.toggleOverview();
+  else if (k === 's' || k === 'S') Reveal.getPlugin('notes').open();
+  else if (k === 'f' || k === 'F') {{ document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); }}
+}});
 </script>
 </body>
 </html>
+"""
+
+
+# The standalone page of a live sketch (<deck>/sketches/<name>.html), also what the deck's iframe loads.
+# @@ tokens, not str.format: the sketch code is full of braces.
+SKETCH_TMPL = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>@@NAME@@ · @@COURSE@@ · p5.js</title>
+<style>
+html,body{margin:0;height:100%;background:#fff;overflow:hidden;font-family:'JetBrains Mono',Menlo,Consolas,monospace}
+canvas{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:block}
+body.top{background:#F4F4F2}
+#bar{display:none;position:fixed;left:0;right:0;top:0;height:44px;background:#000B1C;color:#fff;font-size:12px;letter-spacing:.14em;text-transform:uppercase;align-items:center;padding:0 16px;gap:16px;z-index:9;white-space:nowrap;overflow:hidden}
+#bar b{color:#ED6D24;font-weight:500}#bar span{opacity:.6}#bar a{color:#fff;margin-left:auto;text-decoration:none;opacity:.6}
+body.top #bar{display:flex}body.top canvas{top:calc(50% + 22px)}
+</style>
+<script src="../../vendor/p5/p5.min.js"></script>
+@@SOUND@@
+</head><body>
+<div id="bar"><b>@@COURSE@@</b> @@NAME@@ <span>@@HINT@@ · R restarts</span><a href="../">← the deck</a></div>
+<script>
+@@CODE@@
+@@EXTRA@@
+</script>
+<script>
+(function () {
+  var top = (self === window.top) && !/[?&]snap/.test(location.search);   // on its own: a title bar; ?snap: none (deckgen snap)
+  if (top) document.body.classList.add('top');
+  var CW = @@CW@@, CH = @@CH@@;
+  function fit() {                                   // scale by css size, not transform: p5 maps mouseX from scrollWidth
+    var c = document.querySelector('canvas'); if (!c) return;
+    var pad = top ? 44 : 0, s = Math.min(innerWidth / CW, (innerHeight - pad) / CH);
+    var w = Math.round(CW * s) + 'px', h = Math.round(CH * s) + 'px';
+    if (c.style.width !== w) c.style.width = w;
+    if (c.style.height !== h) c.style.height = h;
+  }
+  new MutationObserver(fit).observe(document.documentElement, {childList: true, subtree: true, attributes: true, attributeFilter: ['width', 'height', 'style']});
+  addEventListener('resize', fit); fit();
+  var NAV = {ArrowLeft: 1, ArrowRight: 1, ArrowUp: 1, ArrowDown: 1, PageUp: 1, PageDown: 1, Home: 1, End: 1, Escape: 1, ' ': 1, s: 1, S: 1, o: 1, O: 1, f: 1, F: 1};
+  addEventListener('keydown', function (e) {
+    if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;   // the sketch used the key (keyPressed returned false)
+    if (e.key === 'r' || e.key === 'R') { location.reload(); return; }
+    if (NAV[e.key] && !top) { parent.postMessage({deckgen: 'key', key: e.key, shift: e.shiftKey}, '*'); e.preventDefault(); }
+  });
+})();
+</script>
+</body></html>
 """
 
 
@@ -515,7 +617,7 @@ def html_text(el):
     return ''.join(out)
 
 
-def html_slide(s, i, assets_out, assets_rel):
+def html_slide(s, i, out_dir, assets_out, assets_rel):
     bg = f' data-background-color="{s.bg}"'
     parts = [f'<section{bg} data-slide="{i}">']
     for el in s.els + s.html_only:
@@ -531,11 +633,19 @@ def html_slide(s, i, assets_out, assets_rel):
         elif el.kind == 'image':
             src = copy_asset(el.src, assets_out)
             fit = 'cover' if el.fit == 'cover' else 'contain'
-            parts.append(f'<div class="img" style="left:{el.x}px;top:{el.y}px;width:{el.w}px;height:{el.h}px"><img src="{assets_rel}/{src}" alt="" style="object-fit:{fit}"></div>')
+            if src is None:   # the still of a sketch not made yet: the live frame covers the spot on screen, print shows the label
+                parts.append(f'<div class="el" style="left:{el.x}px;top:{el.y}px;width:{el.w}px;height:{el.h}px;background:{PAPER};align-items:center;justify-content:center;font:500 22px/1 var(--font-m);color:{MUTED};letter-spacing:.14em;text-transform:uppercase">{esc(el.placeholder or el.src)}</div>')
+            else:
+                parts.append(f'<div class="img" style="left:{el.x}px;top:{el.y}px;width:{el.w}px;height:{el.h}px"><img src="{assets_rel}/{src}" alt="" style="object-fit:{fit}"></div>')
         elif el.kind == 'figure':
             parts.append(f'<div class="fig" style="left:{el.x}px;top:{el.y}px;width:{el.w}px;height:{el.h}px">{el.svg}</div>')
         elif el.kind == 'exercise':
             parts.append(html_exercise(el))
+        elif el.kind == 'sketch':
+            write_sketch_page(el, out_dir)
+            hint = ' · ' + esc(el.hint) if el.hint else ''
+            chip = f'<div class="live"><b></b>Live{hint}<a href="sketches/{el.name}.html" target="_blank" rel="noopener" title="open the sketch in its own tab">↗</a></div>'
+            parts.append(f'<div class="embed sketch" style="left:{el.x}px;top:{el.y}px;width:{el.w}px;height:{el.h}px"><iframe data-src="sketches/{el.name}.html" title="{attr(el.name)}"></iframe>{chip}</div>')
         elif el.kind == 'embed':
             thumb = f'<img class="print-only" src="{assets_rel}/{copy_asset(el.thumb, assets_out)}" alt="">' if el.thumb else ''  # the pdf shows the thumbnail
             parts.append(f'<div class="embed" style="left:{el.x}px;top:{el.y}px;width:{el.w}px;height:{el.h}px"><iframe data-src="https://www.youtube-nocookie.com/embed/{el.yt}?rel=0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>{thumb}</div>')
@@ -686,12 +796,17 @@ def handout_slide(s, i, assets_out, assets_rel):
                     continue
             parts.append(handout_text(el, role))
         elif el.kind == 'image':
-            parts.append(f'<img src="{assets_rel}/{copy_asset(el.src, assets_out)}" alt="">')
+            src = copy_asset(el.src, assets_out)
+            if src is not None:          # the still of a sketch not made yet: its link below stands in
+                parts.append(f'<img src="{assets_rel}/{src}" alt="">')
         elif el.kind == 'figure':
             parts.append(f'<div class="ho-fig">{el.svg}</div>')
         elif el.kind == 'embed':
             parts.append(f'<p><a href="https://www.youtube.com/watch?v={esc(el.yt)}">'
                          f'Watch on YouTube &rsaquo;</a></p>')
+        elif el.kind == 'sketch':
+            hint = f' &mdash; {esc(el.hint)}' if el.hint else ''
+            parts.append(f'<p><a href="sketches/{attr(el.name)}.html">Open the live sketch &rsaquo;</a>{hint}</p>')
         elif el.kind == 'exercise':
             # the widget itself is not duplicated — handout.js moves the one in the deck
             # into this slot, so ids and saved answers cannot diverge between the views
@@ -706,9 +821,11 @@ def handout_slide(s, i, assets_out, assets_rel):
 
 
 def copy_asset(src, assets_out):
-    """Copy an image into the html assets dir (downscaled to <= 1920px, jpeg where possible)."""
+    """Copy an image into the html assets dir (downscaled to <= 1920px, jpeg where possible). None if it is missing."""
     from PIL import Image as PImage
     p = current().resolve_asset(src)
+    if not p.exists():
+        return None   # the still of a sketch not made yet; the callers show a labelled box instead
     assets_out.mkdir(parents=True, exist_ok=True)
     im = PImage.open(p)
     name = p.stem + ('.png' if im.mode in ('RGBA', 'LA', 'P') and p.suffix.lower() == '.png' and _has_alpha(im) else '.jpg')
@@ -732,7 +849,7 @@ PYODIDE_CDN = 'https://cdn.jsdelivr.net/pyodide/v{v}/full/'
 def build_html(deck, out_dir: Path):
     out_dir.mkdir(parents=True, exist_ok=True)
     assets_out = out_dir / 'assets'
-    slides = '\n'.join(html_slide(s, i + 1, assets_out, 'assets') for i, s in enumerate(deck['slides']))
+    slides = '\n'.join(html_slide(s, i + 1, out_dir, assets_out, 'assets') for i, s in enumerate(deck['slides']))
     # only ship the runtime if the deck can use it
     live = deck.get('console', True) and any(
         el.kind == 'exercise' for sl in deck['slides'] for el in sl.els + sl.html_only)
@@ -844,6 +961,9 @@ def build_pptx(deck, out_path: Path, footer: str):
     def add_image(slide, path, el):
         from PIL import Image as PImage
         p = current().resolve_asset(path)
+        if not p.exists():   # the still of a sketch not made yet: a labelled box where it will go
+            add_rect(slide, Rect(el.x, el.y, el.w, el.h, PAPER))
+            return add_text(slide, T(el.x, el.y, el.w, el.h, getattr(el, 'placeholder', '') or p.stem, 'monomed', 22, MUTED, lh=1.2, align='c', valign='m', spc=0.14, caps=True))
         im = PImage.open(p)
         iw, ih = im.size
         box_ar, img_ar = el.w / el.h, iw / ih
@@ -951,6 +1071,11 @@ def build_png(deck, out_dir: Path, scale=0.5):
                     d.rectangle([el.x, el.y, el.x + el.w, el.y + el.h], fill='#111')
                     continue
                 p = current().resolve_asset(src)
+                if not p.exists():
+                    warnings.append(f'slide {i:>2}: no still for the live sketch "{getattr(el, "placeholder", "") or p.stem}" — run `deckgen snap`')
+                    d.rectangle([el.x, el.y, el.x + el.w, el.y + el.h], fill=PAPER)
+                    d.text((el.x + 20, el.y + 20), (getattr(el, 'placeholder', '') or p.stem).upper(), font=pil_font('monomed', 22), fill=MUTED)
+                    continue
                 pim = PImage.open(p).convert('RGBA')
                 fit = getattr(el, 'fit', 'cover')
                 pim = _fit(pim, el.w, el.h, fit)
@@ -1036,6 +1161,86 @@ def contact_sheet(files, out, cols=4, scale=0.5):
     return out
 
 
+# ───────────────────────── live sketches ─────────────────────────
+def write_sketch_page(el, out_dir: Path):
+    """The standalone page of a live sketch: <deck>/sketches/<name>.html."""
+    sk = out_dir / 'sketches'
+    sk.mkdir(parents=True, exist_ok=True)
+    sound = '<script src="../../vendor/p5/p5.sound.min.js"></script>' if el.sound else ''
+    page = (SKETCH_TMPL.replace('@@NAME@@', esc(el.name)).replace('@@COURSE@@', esc(current().code))
+            .replace('@@HINT@@', esc(el.hint or 'live p5.js')).replace('@@SOUND@@', sound)
+            .replace('@@EXTRA@@', el.extra or '').replace('@@CODE@@', el.code)
+            .replace('@@CW@@', str(el.cw)).replace('@@CH@@', str(el.ch)))
+    path = sk / f'{el.name}.html'
+    path.write_text(page, encoding='utf-8')
+    return path
+
+
+def sketches_of(deck):
+    """Every live sketch of a deck, once each, in slide order."""
+    seen = {}
+    for s in deck['slides']:
+        for el in s.els + s.html_only:
+            if el.kind == 'sketch' and el.name not in seen:
+                seen[el.name] = el
+    return list(seen.values())
+
+
+def node_env():
+    """Environment for the node scripts in js/: NODE_PATH bridged to the course repo's node_modules (and
+    the machine's global ones), since the scripts live in site-packages and would not see them."""
+    env = dict(os.environ)
+    roots = [p for p in (current().root / 'node_modules', Path('/opt/node22/lib/node_modules')) if p.is_dir()]
+    if env.get('NODE_PATH'):
+        roots.append(Path(env['NODE_PATH']))
+    if roots:
+        env['NODE_PATH'] = os.pathsep.join(str(p) for p in roots)
+    return env
+
+
+def playwright_env():
+    """node_env() when node and the playwright package are here, else None."""
+    if not shutil.which('node'):
+        return None
+    env = node_env()
+    try:
+        subprocess.run(['node', '-e', "require('playwright')"], check=True, env=env, capture_output=True, timeout=60)
+    except Exception:
+        return None
+    return env
+
+
+def snapshot_sketches(deck, name: str, force=False):
+    """Screenshot every live sketch of a deck that needs a still into deck/assets/sketches/<sketch>.png
+    (committed: the pptx and the PDF show it where the html deck runs the sketch). Skips the ones that
+    exist unless force. Needs node + playwright + Chromium; without them the committed stills are used
+    and missing ones are reported by the build. A page that makes no canvas (an error before
+    createCanvas) writes no still: the committed one stays and a warning says so."""
+    proj = current()
+    todo = [el for el in sketches_of(deck) if el.twin and (force or not twin_png(el.name).exists())]
+    if not todo:
+        return []
+    env = playwright_env()
+    if env is None:
+        return []
+    # the pages load ../../vendor/p5/p5.min.js from _site/vendor: put it there, a clean checkout has not built the site
+    shutil.copytree(SCAFFOLD_SITE / 'vendor' / 'p5', proj.site / 'vendor' / 'p5', dirs_exist_ok=True)
+    out_dir = proj.site / name
+    proj.sketches.mkdir(parents=True, exist_ok=True)
+    args = []
+    for el in todo:
+        page = write_sketch_page(el, out_dir)
+        args += [str(page), str(twin_png(el.name)), str(el.cw), str(el.ch)]
+    started = time.time()
+    subprocess.run(['node', str(JS_DIR / 'snap.js'), *args], env=env)   # exit 1 when a page made no canvas
+    made = [twin_png(el.name) for el in todo if twin_png(el.name).exists() and twin_png(el.name).stat().st_mtime >= started]
+    for el in todo:
+        if twin_png(el.name) not in made:
+            kept = 'the old still is kept' if twin_png(el.name).exists() else 'the build will show a placeholder'
+            print(f'WARNING {name}: no still made for "{el.name}" (the page made no canvas: see the node output above); {kept}')
+    return made
+
+
 # ───────────────────────── orchestration ─────────────────────────
 def build_pdf(index_html: Path, out_pdf: Path):
     """Print the html deck to a PDF (reveal.js print mode, Chromium via Playwright, js/pdf.js).
@@ -1046,22 +1251,16 @@ def build_pdf(index_html: Path, out_pdf: Path):
     relative to site-packages and never sees the course repo's node_modules/. NODE_PATH is
     how that gets bridged — without it the PDF step fails on a machine where `npm install`
     put playwright exactly where the docs say to put it."""
-    env = dict(os.environ)
-    roots = [p for p in (current().root / 'node_modules', Path('/opt/node22/lib/node_modules'))
-             if p.is_dir()]
-    if env.get('NODE_PATH'):
-        roots.append(Path(env['NODE_PATH']))
-    if roots:
-        env['NODE_PATH'] = os.pathsep.join(str(p) for p in roots)
-    subprocess.run(['node', str(JS_DIR / 'pdf.js'), str(index_html), str(out_pdf)], check=True, env=env)
+    subprocess.run(['node', str(JS_DIR / 'pdf.js'), str(index_html), str(out_pdf)], check=True, env=node_env())
     return out_pdf
 
 
-def build_all(deck, name: str, footer: str | None = None, do_pptx=True, do_html=True, do_png=True, do_pdf=True):
+def build_all(deck, name: str, footer: str | None = None, do_pptx=True, do_html=True, do_png=True, do_pdf=True, snap=False):
     proj = current()
     SITE, EXPORT = proj.site, proj.export
     footer = proj.footer if footer is None else footer
     outputs = {}
+    outputs['stills'] = snapshot_sketches(deck, name, force=snap)   # the twins of the live sketches, when node + playwright are here
     if do_html:
         outputs['html'] = build_html(deck, SITE / name)
         if do_pdf:  # the published, button-free version of the deck

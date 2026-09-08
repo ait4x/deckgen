@@ -25,8 +25,10 @@ A repo declares itself in `deckgen.toml` at its root:
     out   = "syllabus.html"
     title = "SD5913 · Syllabus 2026/27"
 
-Paths are conventional and relative to the repo root: deck/, deck/assets/,
-syllabus/, lessons/, site/, and the two git-ignored outputs _site/ and export/.
+Paths are conventional and relative to the repo root: deck/, deck/assets/ (with
+deck/assets/generated/ for the drawn figures, git-ignored, and deck/assets/sketches/
+for the stills of the live sketches, committed), syllabus/, lessons/, site/, and the
+two git-ignored outputs _site/ and export/.
 """
 from __future__ import annotations
 
@@ -64,6 +66,8 @@ class Project:
     def assets(self): return self.root / 'deck' / 'assets'
     @property
     def generated(self): return self.assets / 'generated'
+    @property
+    def sketches(self): return self.assets / 'sketches'   # stills of the live sketches (`deckgen snap`), committed
     @property
     def site_src(self): return self.root / 'site'
     @property

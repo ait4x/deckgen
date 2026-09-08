@@ -2,7 +2,9 @@
 Slide layouts — the eight ait4x layouts (Title, Section band, Content white,
 Content ink, Two column, Question, Quote, Statement) plus the ones a course
 usually wants (agenda, cards, timeline, journey map, activity step, video,
-assessment, team, image_full, statement, figure_slide).
+assessment, team, image_full, statement, figure_slide), the code ones (two_col,
+code_panel, code_slide, exercise) and the live p5.js ones (sketch_slide, and
+`sketch=` on content, figure_slide, code_slide and activity).
 
 Every function returns a deckgen.Slide made of absolute elements on the
 1920 x 1080 canvas. Geometry mirrors deckgen.classpoint so the PowerPoint export
@@ -13,7 +15,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from .core import (Slide, Text, Para, Rect, Image, Figure, Embed, Exercise, T, P, runs, eyebrow, CODE, CODE_SMALL,
+from .core import (Slide, Text, Para, Run, Rect, Image, Figure, Embed, Sketch, Exercise, T, P, runs, eyebrow, CODE, CODE_SMALL,
+                     text_height, run_width, twin_png,
                      INK, WHITE, PAPER, GRAY, TEAL, TXT, MUTED, LINE, LINE_STRONG, ORANGE, VIOLET, PINK, YELLOW, GREEN, BLUE,
                      MUTED_ON_INK, LIGHT_ON_INK, YELLOWS, VIOLETS, TEALS, ORANGES, PINKS)
 
@@ -151,17 +154,80 @@ def quote(text, who, image=None, notes='', size=80, bg=PAPER, fit='cover'):
     return s
 
 
-def content(eyebrow_text, title_text, body, image=None, figure=None, fit='cover', notes='', bg=WHITE, body_size=36, title_size=72, caption=None, cp=None, images=None):
-    """Title + body; optional media on the right: image path, figure (svg, png), or a list of images (grid)."""
+# ───────────────────────── live sketches ─────────────────────────
+def live(name, code, cw=600, ch=600, hint='', extra='', sound=False):
+    """A live p5.js sketch for a slide (the layout that places it sets the geometry).
+    name: file name of the page (<deck>/sketches/<name>.html) and of the still (deck/assets/sketches/<name>.png);
+    code: the sketch, as the students see it; extra: js appended for interaction the code panel does not show;
+    hint: what the room can do ('move the mouse · click to reseed'); sound: also load p5.sound."""
+    return Sketch(0, 0, 0, 0, name, code, cw, ch, hint=hint, extra=extra, sound=sound)
+
+
+def _as_sketch(sketch):
+    if isinstance(sketch, Sketch):
+        return sketch
+    name, js, cw, ch, *rest = sketch          # the short form: (name, js, canvas_w, canvas_h[, hint])
+    return live(name, js, cw, ch, hint=rest[0] if rest else '')
+
+
+def _fit_box(box, iw, ih):
+    x, y, w, h = box
+    r = min(w / iw, h / ih)
+    fw, fh = round(iw * r), round(ih * r)
+    return x + (w - fw) // 2, y, fw, fh
+
+
+def place_sketch(s, sketch, box, figure=None):
+    """Fit a live sketch into box: the twin (a figure, or the committed still) goes on the slide for the pptx
+    and the PDF, the live frame on top for html. Returns the frame (x, y, w, h)."""
+    sk = _as_sketch(sketch)
+    if figure:
+        svg, png = figure
+        fig = _fit_figure(box, svg, png)
+        frame = (fig.x, fig.y, fig.w, fig.h)
+        s.els.append(fig)
+        sk.twin = False
+    else:
+        frame = _fit_box(box, sk.cw, sk.ch)
+        s.els.append(Image(*frame, str(twin_png(sk.name)), 'contain', placeholder=f'{sk.name} · live in the html deck'))
+    sk.x, sk.y, sk.w, sk.h = frame
+    s.html_only.append(sk)
+    return frame
+
+
+def sketch_slide(eyebrow_text, title_text, sketch, notes='', bg=WHITE, caption=None, body=None, cp=None, figure=None, title_size=64):
+    """Title on top, a live sketch below (max 1680 x 640, fitted to the sketch's aspect); html runs it, the pptx
+    and the PDF show the twin (figure, or the still made by `deckgen snap`)."""
+    t, b, m = palette(bg)
+    s = _slide(bg, notes, cp=cp, title=title_text)
+    s.els += [eyebrow(M, 96, eyebrow_text, m), T(M, TITLE_Y, CW, 110, title_text, 'xbold', title_size, t, lh=0.95, spc=-0.03)]
+    top = 320
+    if body:
+        tb = Text(M, 300, CW, 90, body_paras(body, 30, b, lh=1.3), 't')
+        tb.h = max(90, int(text_height(tb)) + 4)
+        s.els.append(tb)
+        top = 300 + tb.h + 10
+    bottom = 896 if caption else 960
+    place_sketch(s, sketch, (M, top, CW, bottom - top), figure)
+    if caption:
+        s.els.append(T(M, 912, CW, 80, caption, 'mono', 20, m, lh=1.3))
+    return s
+
+
+def content(eyebrow_text, title_text, body, image=None, figure=None, fit='cover', notes='', bg=WHITE, body_size=36, title_size=72, caption=None, cp=None, images=None, sketch=None):
+    """Title + body; optional media on the right: image path, figure (svg, png), a list of images (grid), or a live sketch
+    (over the figure when both are given; on its own, the still made by `deckgen snap` stands in for it in print)."""
     t, b, m = palette(bg)
     s = _slide(bg, notes, cp=cp, title=title_text)
     s.els.append(eyebrow(M, 96, eyebrow_text, m))
-    media = image or figure or images
+    media = image or figure or images or sketch
     if media:
         s.els.append(T(M, TITLE_Y, 800, 260, title_text, 'xbold', title_size, t, lh=0.95, spc=-0.03))
         s.els.append(Text(M, 480, 800, 470, body_paras(body, body_size, b), 't'))
         box = (1000, TITLE_Y, 800, 766 if not caption else 680)
-        if image:
+        if sketch:
+            place_sketch(s, sketch, box, figure)
+        elif image:
             s.els.append(Image(*box, image, fit))
         elif figure:
             svg, png = figure
@@ -199,18 +265,23 @@ def image_grid(paths, x, y, w, h, gap=16):
     return out
 
 
-def figure_slide(eyebrow_text, title_text, figure, notes='', bg=WHITE, caption=None, body=None, cp=None):
-    """Title on top, a wide figure below (max 1680 x 640)."""
+def figure_slide(eyebrow_text, title_text, figure, notes='', bg=WHITE, caption=None, body=None, cp=None, sketch=None):
+    """Title on top, a wide figure below (max 1680 x 640). sketch: a live sketch runs over the figure in the html deck."""
     t, b, m = palette(bg)
     s = _slide(bg, notes, cp=cp, title=title_text)
     s.els += [eyebrow(M, 96, eyebrow_text, m), T(M, TITLE_Y, CW, 110, title_text, 'xbold', 64, t, lh=0.95, spc=-0.03)]
     svg, png = figure
     top = 320
     if body:
-        s.els.append(Text(M, 300, CW, 90, body_paras(body, 30, b, lh=1.3), 't'))
-        top = 400
+        tb = Text(M, 300, CW, 90, body_paras(body, 30, b, lh=1.3), 't')
+        tb.h = max(90, int(text_height(tb)) + 4)   # two lines by default; a third pushes the figure down
+        s.els.append(tb)
+        top = 300 + tb.h + 10
     bottom = 896 if caption else 960
-    s.els.append(_fit_figure((M, top, CW, bottom - top), svg, png))
+    if sketch:
+        place_sketch(s, sketch, (M, top, CW, bottom - top), figure)
+    else:
+        s.els.append(_fit_figure((M, top, CW, bottom - top), svg, png))
     if caption:
         s.els.append(T(M, 912, CW, 80, caption, 'mono', 20, m, lh=1.3))
     return s
@@ -335,15 +406,86 @@ def journey(eyebrow_text, title_text, rows, notes='', bg=WHITE, here=None):
     return s
 
 
-def activity(step, minutes, title_text, body, notes='', bg=YELLOWS[0], eyebrow_text='ACTIVITY', cp=None):
+def activity(step, minutes, title_text, body, notes='', bg=YELLOWS[0], eyebrow_text='ACTIVITY', cp=None, panel=None, panel_size=CODE_SMALL, sketch=None):
+    """An activity step. panel: lines shown in a white mono panel on the right (a spec, a template, code);
+    sketch: a live sketch on the right instead (the thing the room plays with)."""
     t, b, m = palette(bg)
     s = _slide(bg, notes, cp=cp, title=title_text)
     s.els += [
         eyebrow(M, 96, f'{eyebrow_text} · {step}', INK),
         T(1300, 60, 500, 130, minutes if isinstance(minutes, str) else f'{minutes} min', 'black', 96, INK, lh=1.0, align='r', spc=-0.04),
-        T(M, 300, 1400, 240, title_text, 'xbold', 84, INK, lh=0.95, valign='b', spc=-0.035),
-        Text(M, 580, 1400, 380, body_paras(body, 34, INK, lh=1.35), 't'),
     ]
+    if sketch:
+        s.els += [
+            T(M, 230, 800, 250, title_text, 'xbold', 64, INK, lh=0.95, valign='b', spc=-0.035),
+            Text(M, 520, 800, 440, body_paras(body, 30, INK, lh=1.35), 't'),
+            Rect(1000, 230, 800, 730, WHITE),
+        ]
+        place_sketch(s, sketch, (1000, 230, 800, 730))
+    elif panel:
+        s.els += [
+            T(M, 230, 800, 250, title_text, 'xbold', 64, INK, lh=0.95, valign='b', spc=-0.035),
+            Text(M, 520, 800, 440, body_paras(body, 30, INK, lh=1.35), 't'),
+            Rect(1000, 230, 800, 730, WHITE),
+            Text(1040, 270, 720, 650, body_paras(panel, panel_size, INK, lh=1.45, gap=0, font='mono'), 't', name='code'),
+        ]
+    else:
+        s.els += [
+            T(M, 300, 1400, 240, title_text, 'xbold', 84, INK, lh=0.95, valign='b', spc=-0.035),
+            Text(M, 580, 1400, 380, body_paras(body, 34, INK, lh=1.35), 't'),
+        ]
+    return s
+
+
+def code_paras(lines, size=CODE, color=INK, lh=1.32):
+    """Code, verbatim: no inline markup, blank lines kept, // comments muted."""
+    out = []
+    for line in (lines.splitlines() if isinstance(lines, str) else lines):
+        if '//' in line:
+            code, comment = line.split('//', 1)
+            rs = [Run(code, 'mono', size, color), Run('//' + comment, 'mono', size, MUTED)]
+        else:
+            rs = [Run(line or ' ', 'mono', size, color)]
+        out.append(Para(rs, 'l', lh))
+    return out
+
+
+def _code_width(line, size):
+    # Chromium rounds the mono advance to whole pixels (21 px and 22 px both give 13 px per character)
+    return max(len(line) * round(0.6 * size), run_width(Run(line, 'mono', size)))
+
+
+def _code_size(lines, width, height, lh=1.32):
+    """CODE when every line fits the panel, else the largest of CODE_SMALL and 22 that does. Wrapped code
+    misleads, so a line too wide even at 22 px is an error."""
+    for size in (CODE, CODE_SMALL, 22):
+        if len(lines) * size * lh <= height and all(_code_width(line, size) <= width for line in lines):
+            return size
+    wide = max(lines, key=lambda line: _code_width(line, 22))
+    raise ValueError(f'code does not fit a {width} x {height} px panel even at 22px ({len(lines)} lines; widest: {wide!r})')
+
+
+def code_slide(eyebrow_text, title_text, code, figure=None, notes='', bg=WHITE, caption=None, code_size=None, sketch=None, title_size=64, cp=None):
+    """Code on the left (a paper panel), the picture it makes on the right.
+    sketch: live(...) or (name, js, canvas_w, canvas_h): in the html deck a live p5.js run of the code covers the
+    figure; with no figure, the still made by `deckgen snap` stands in for it in the pptx and the PDF.
+    code_size: CODE when the code fits the half-width panel, else the largest of CODE_SMALL and 22 that does."""
+    t, b, m = palette(bg)
+    s = _slide(bg, notes, cp=cp, title=title_text)
+    s.els += [eyebrow(M, 96, eyebrow_text, m), T(M, TITLE_Y, CW, 100, title_text, 'xbold', title_size, t, lh=0.95, spc=-0.03)]
+    top = 296
+    lines = code.splitlines() if isinstance(code, str) else list(code)
+    code_size = code_size or _code_size(lines, 744, 980 - top - 48)
+    s.els += [Rect(M, top, 800, 980 - top, PAPER),
+              Text(M + 28, top + 24, 744, 980 - top - 48, code_paras(lines, code_size), 't', name='code')]
+    box = (1000, top, 800, (896 if caption else 980) - top)
+    if sketch:
+        place_sketch(s, sketch, box, figure)
+    else:
+        svg, png = figure
+        s.els.append(_fit_figure(box, svg, png))
+    if caption:
+        s.els.append(T(1000, 912, 800, 80, caption, 'mono', 20, m, lh=1.3))
     return s
 
 
@@ -430,14 +572,14 @@ def team_band(eyebrow_text, title_text, leads, band_label, assistants, notes='',
     return s
 
 
-def two_col(eyebrow_text, title_text, left, right, notes='', bg=WHITE, right_bg=PAPER, right_font='mono', right_size=CODE):
+def two_col(eyebrow_text, title_text, left, right, notes='', bg=WHITE, right_bg=PAPER, right_font='mono', right_size=CODE, left_size=34):
     """Body left, a code / text panel right."""
     t, b, m = palette(bg)
     s = _slide(bg, notes, title=title_text)
     s.els += [
         eyebrow(M, 96, eyebrow_text, m),
         T(M, TITLE_Y, 800, 260, title_text, 'xbold', 72, t, lh=0.95, spc=-0.03),
-        Text(M, 480, 800, 470, body_paras(left, 34, b, lh=1.4), 't'),
+        Text(M, 480, 800, 470, body_paras(left, left_size, b, lh=1.4), 't'),
         Rect(1000, TITLE_Y, 800, 766, right_bg),
         Text(1040, TITLE_Y + 40, 720, 690, body_paras(right, right_size, INK if right_bg != INK else LIGHT_ON_INK, lh=1.5, gap=0, font=right_font), 't',
              name='code' if right_font == 'mono' else ''),
