@@ -20,6 +20,8 @@ from .core import (Slide, Text, Para, Run, Rect, Image, Figure, Embed, Sketch, E
                      INK, WHITE, PAPER, GRAY, TEAL, TXT, MUTED, LINE, LINE_STRONG, ORANGE, VIOLET, PINK, YELLOW, GREEN, BLUE,
                      MUTED_ON_INK, LIGHT_ON_INK, YELLOWS, VIOLETS, TEALS, ORANGES, PINKS)
 
+from .syntax import code_runs, highlight_runs, theme_for, LIGHT, DARK  # noqa: E402
+
 LOGO = str(Path(__file__).resolve().parent / 'assets' / 'polyu-design-logo.png')
 LIGHT_BGS = {WHITE, PAPER}
 
@@ -406,8 +408,9 @@ def journey(eyebrow_text, title_text, rows, notes='', bg=WHITE, here=None):
     return s
 
 
-def activity(step, minutes, title_text, body, notes='', bg=YELLOWS[0], eyebrow_text='ACTIVITY', cp=None, panel=None, panel_size=CODE_SMALL, sketch=None):
+def activity(step, minutes, title_text, body, notes='', bg=YELLOWS[0], eyebrow_text='ACTIVITY', cp=None, panel=None, panel_size=CODE_SMALL, sketch=None, lang=None):
     """An activity step. panel: lines shown in a white mono panel on the right (a spec, a template, code);
+    lang ('py' | 'js') colours the panel as code, else it is plain — a spec is not code;
     sketch: a live sketch on the right instead (the thing the room plays with)."""
     t, b, m = palette(bg)
     s = _slide(bg, notes, cp=cp, title=title_text)
@@ -427,7 +430,7 @@ def activity(step, minutes, title_text, body, notes='', bg=YELLOWS[0], eyebrow_t
             T(M, 230, 800, 250, title_text, 'xbold', 64, INK, lh=0.95, valign='b', spc=-0.035),
             Text(M, 520, 800, 440, body_paras(body, 30, INK, lh=1.35), 't'),
             Rect(1000, 230, 800, 730, WHITE),
-            Text(1040, 270, 720, 650, body_paras(panel, panel_size, INK, lh=1.45, gap=0, font='mono'), 't', name='code'),
+            Text(1040, 270, 720, 650, code_paras(panel, panel_size, INK, lh=1.45, lang=lang), 't', name='code'),
         ]
     else:
         s.els += [
@@ -437,17 +440,14 @@ def activity(step, minutes, title_text, body, notes='', bg=YELLOWS[0], eyebrow_t
     return s
 
 
-def code_paras(lines, size=CODE, color=INK, lh=1.32):
-    """Code, verbatim: no inline markup, blank lines kept, // comments muted."""
-    out = []
-    for line in (lines.splitlines() if isinstance(lines, str) else lines):
-        if '//' in line:
-            code, comment = line.split('//', 1)
-            rs = [Run(code, 'mono', size, color), Run('//' + comment, 'mono', size, MUTED)]
-        else:
-            rs = [Run(line or ' ', 'mono', size, color)]
-        out.append(Para(rs, 'l', lh))
-    return out
+def code_paras(lines, size=CODE, color=INK, lh=1.32, lang='py'):
+    """Code, verbatim: no inline markup, blank lines kept, coloured by the syntax of `lang`
+    ('py' or 'js'; None for plain mono — a diagram drawn in text is not code)."""
+    lines = lines.split('\n') if isinstance(lines, str) else list(lines)
+    if not lang:
+        return [Para([Run(line or ' ', 'mono', size, color)], 'l', lh) for line in lines]
+    theme = DARK if color == LIGHT_ON_INK else LIGHT
+    return [Para(rs, 'l', lh) for rs in code_runs(lines, size, theme, lang)]
 
 
 def _code_width(line, size):
@@ -465,11 +465,12 @@ def _code_size(lines, width, height, lh=1.32):
     raise ValueError(f'code does not fit a {width} x {height} px panel even at 22px ({len(lines)} lines; widest: {wide!r})')
 
 
-def code_slide(eyebrow_text, title_text, code, figure=None, notes='', bg=WHITE, caption=None, code_size=None, sketch=None, title_size=64, cp=None):
+def code_slide(eyebrow_text, title_text, code, figure=None, notes='', bg=WHITE, caption=None, code_size=None, sketch=None, title_size=64, cp=None, lang=None):
     """Code on the left (a paper panel), the picture it makes on the right.
     sketch: live(...) or (name, js, canvas_w, canvas_h): in the html deck a live p5.js run of the code covers the
     figure; with no figure, the still made by `deckgen snap` stands in for it in the pptx and the PDF.
-    code_size: CODE when the code fits the half-width panel, else the largest of CODE_SMALL and 22 that does."""
+    code_size: CODE when the code fits the half-width panel, else the largest of CODE_SMALL and 22 that does.
+    lang: 'py' or 'js' for the colours; by default the code of a live sketch is JavaScript and anything else Python."""
     t, b, m = palette(bg)
     s = _slide(bg, notes, cp=cp, title=title_text)
     s.els += [eyebrow(M, 96, eyebrow_text, m), T(M, TITLE_Y, CW, 100, title_text, 'xbold', title_size, t, lh=0.95, spc=-0.03)]
@@ -477,7 +478,7 @@ def code_slide(eyebrow_text, title_text, code, figure=None, notes='', bg=WHITE, 
     lines = code.splitlines() if isinstance(code, str) else list(code)
     code_size = code_size or _code_size(lines, 744, 980 - top - 48)
     s.els += [Rect(M, top, 800, 980 - top, PAPER),
-              Text(M + 28, top + 24, 744, 980 - top - 48, code_paras(lines, code_size), 't', name='code')]
+              Text(M + 28, top + 24, 744, 980 - top - 48, code_paras(lines, code_size, lang=lang or ('js' if sketch else 'py')), 't', name='code')]
     box = (1000, top, 800, (896 if caption else 980) - top)
     if sketch:
         place_sketch(s, sketch, box, figure)
@@ -572,8 +573,9 @@ def team_band(eyebrow_text, title_text, leads, band_label, assistants, notes='',
     return s
 
 
-def two_col(eyebrow_text, title_text, left, right, notes='', bg=WHITE, right_bg=PAPER, right_font='mono', right_size=CODE, left_size=34):
-    """Body left, a code / text panel right."""
+def two_col(eyebrow_text, title_text, left, right, notes='', bg=WHITE, right_bg=PAPER, right_font='mono', right_size=CODE, left_size=34, lang='py'):
+    """Body left, a code / text panel right. A mono panel is coloured as `lang` ('py' | 'js');
+    lang=None keeps it plain, for a diagram drawn in text."""
     t, b, m = palette(bg)
     s = _slide(bg, notes, title=title_text)
     s.els += [
@@ -581,14 +583,17 @@ def two_col(eyebrow_text, title_text, left, right, notes='', bg=WHITE, right_bg=
         T(M, TITLE_Y, 800, 260, title_text, 'xbold', 72, t, lh=0.95, spc=-0.03),
         Text(M, 480, 800, 470, body_paras(left, left_size, b, lh=1.4), 't'),
         Rect(1000, TITLE_Y, 800, 766, right_bg),
-        Text(1040, TITLE_Y + 40, 720, 690, body_paras(right, right_size, INK if right_bg != INK else LIGHT_ON_INK, lh=1.5, gap=0, font=right_font), 't',
+        Text(1040, TITLE_Y + 40, 720, 690,
+             code_paras(right, right_size, INK if right_bg != INK else LIGHT_ON_INK, lh=1.5, lang=lang) if right_font == 'mono'
+             else body_paras(right, right_size, INK if right_bg != INK else LIGHT_ON_INK, lh=1.5, gap=0, font=right_font), 't',
              name='code' if right_font == 'mono' else ''),
     ]
     return s
 
 
-def code_panel(eyebrow_text, title_text, lines, notes='', bg=WHITE, caption=None, cp=None):
-    """A slide that is mostly code. One column, full width, at the canonical CODE size."""
+def code_panel(eyebrow_text, title_text, lines, notes='', bg=WHITE, caption=None, cp=None, lang='py'):
+    """A slide that is mostly code. One column, full width, at the canonical CODE size. Inline markup
+    still works — a {orange:…} span stays orange — and everything untagged is coloured as `lang`."""
     t, b, m = palette(bg)
     s = _slide(bg, notes, cp=cp, title=title_text)
     s.els += [
@@ -597,7 +602,8 @@ def code_panel(eyebrow_text, title_text, lines, notes='', bg=WHITE, caption=None
         Rect(M, 372, CW, 520 if caption else 580, PAPER if bg is not PAPER else WHITE),
         # every run, not runs(...)[0] — a highlighted span mid-line used to take the
         # rest of the line with it
-        Text(M + 40, 412, CW - 80, 500, [Para(runs(ln or ' ', 'mono', CODE, INK), 'l', 1.45)
+        Text(M + 40, 412, CW - 80, 500, [Para(highlight_runs(runs(ln or ' ', 'mono', CODE, INK), LIGHT, lang) if lang
+                                              else runs(ln or ' ', 'mono', CODE, INK), 'l', 1.45)
                                          for ln in lines], 't', name='code'),
     ]
     if caption:
@@ -606,7 +612,7 @@ def code_panel(eyebrow_text, title_text, lines, notes='', bg=WHITE, caption=None
 
 
 def exercise(eyebrow_text, title_text, brief, code, check=None, expect=None, eid=None,
-             label=None, hint=None, notes='', bg=WHITE, rows=8, cp=None):
+             label=None, hint=None, notes='', bg=WHITE, rows=8, cp=None, code_size=None):
     """A drill the room does on their laptops.
 
     `brief` is the one or two lines telling them what to do — keep it to one idea.
@@ -629,10 +635,13 @@ def exercise(eyebrow_text, title_text, brief, code, check=None, expect=None, eid
         Text(M, 400, 780, 300, body_paras(brief if isinstance(brief, list) else [brief],
                                           32, b, lh=1.4, gap=14), 't'),
     ]
+    # the same rule as code_slide: CODE when it fits the panel, else the largest size that
+    # does, and an error rather than a wrapped or overflowing panel in the pptx and the PDF
+    size = code_size or _code_size(code.split('\n'), 860 - 80, 766 - 64, lh=1.45)
     s.els.append(Exercise(940, 184, 860, 766, code,
                           check=check or '', expect=expect,
                           eid=eid or _eid(title_text), label=label or 'YOUR TURN',
-                          hint=hint or 'ctrl+enter runs it', rows=rows))
+                          hint=hint or 'ctrl+enter runs it', rows=rows, size=size))
     return s
 
 
