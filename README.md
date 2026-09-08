@@ -151,6 +151,58 @@ afterwards in the student's namespace, with the captured stdout bound to `_out`;
 Code everywhere — `exercise`, `code_panel`, `two_col`'s right panel, `question(example=…)`
 — is set at `deckgen.CODE` (30 px = 15 pt), one size across every layout.
 
+## After the class: report links
+
+ClassPoint publishes every activity at `app.classpoint.io/activity/<activityId>` — a
+public page, no login, with all the responses on it. Those ids are the only thing between
+a student and their own work, so a deck can carry them:
+
+```python
+from deckgen import attach_reports
+
+attach_reports(S, Path(__file__).parent / 'week01-reports.json')
+DECK = dict(title=..., slides=finalize(S, FOOTER), ...)
+```
+
+The eyebrow of each question slide gains a link, which costs no layout space, works on
+every question variant including multiple choice (where `hint` is not rendered), and
+becomes a real hyperlink in the PowerPoint as well as the html:
+
+```
+QUESTION · MULTIPLE CHOICE · YOUR ANSWERS
+                             ^ https://app.classpoint.io/activity/mc20260904043922212ZXSV
+```
+
+The file is a list, one entry per activity, **in the order the class ran them**:
+
+```json
+[{"activity": "sa20260904033646383JAAW", "question": "Why is AI relevant for design?"},
+ {"activity": "mc20260904034846877ZUKC", "question": "Which are you closest to?"}]
+```
+
+Order is the whole contract. ClassPoint mints an id the first time an activity runs, so
+the activities of one class sort chronologically into exactly the order their slides
+appear in — which is why the file needs no slide numbers and survives the deck being
+re-cut around them. `question` is optional and checked when present; it catches the case
+that actually happens, a question added or rewritten after the class it was matched
+against. A count mismatch or a changed question raises. **A missing file is a no-op**, so
+every deck can call this from the day it is written and the links appear the week it is
+taught.
+
+An entry can record an activity **without** linking it:
+
+```json
+[{"activity": null, "question": "One hope and one worry.", "withheld": "names hidden"}]
+```
+
+That is not a formality. ClassPoint's public page honours an activity's `isNamesHidden`,
+but **the payload behind it still carries `participantName` for every response** — so a
+link to an activity the room was told was anonymous hands out a way to undo that. The
+slide keeps its place in the count and simply gets no link.
+
+Writing the file is [`classpoint.py`](https://github.com/venetanji/classpoint.py)'s job —
+it reads the activity ids back out of ClassPoint after class.
+
 ## On a phone
 
 reveal.js fits the 1920×1080 canvas to the viewport, so on a 390px screen the body text
@@ -182,6 +234,7 @@ panels are dropped, and images keep their place but not their composition.
 
 ```bash
 python tests/runtime.test.py     # the Python half, against the real interpreter
+python tests/reports.test.py     # report links: the mapping contract, and the anchor
 npm install --no-save jsdom
 node tests/wiring.test.js        # the DOM half, Pyodide stubbed
 node tests/handout.test.js       # the reading view: switching, and moving the widgets

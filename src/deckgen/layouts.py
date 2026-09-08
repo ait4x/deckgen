@@ -246,7 +246,8 @@ KIND_LABEL = {'word_cloud': 'Word cloud', 'multiple_choice': 'Multiple choice', 
 def question(kind, question_text, choices=None, hint=None, notes='', eyebrow_text=None, size=None, cp=None, bg=WHITE, example=None):
     t, b, m = palette(bg)
     s = _slide(bg, notes, title=question_text)
-    s.els.append(eyebrow(M, 96, eyebrow_text or f'QUESTION · {KIND_LABEL[kind]}', m))
+    # named so attach_reports() can find it after class and hang the report link on it
+    s.els.append(eyebrow(M, 96, eyebrow_text or f'QUESTION · {KIND_LABEL[kind]}', m, name='question-eyebrow'))
     n = len(question_text)
     qs = size or (110 if n <= 34 else 92 if n <= 60 else 76 if n <= 90 else 64)
     if choices:

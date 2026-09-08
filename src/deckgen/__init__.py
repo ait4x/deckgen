@@ -25,6 +25,7 @@ The design system is ait4x (PolyU School of Design). See PPTX-EXPORT.md for why
 PowerPoint font names carry the weight, and README.md for the repo layout.
 """
 from .project import Project, configure, current, find_config
+from .reports import attach_reports, activity_url, links as report_links
 from .core import (
     # element model
     Slide, Run, Para, Text, Rect, Image, Figure, Embed,
@@ -44,6 +45,7 @@ __version__ = '0.1.0'
 
 __all__ = [
     'Project', 'configure', 'current', 'find_config',
+    'attach_reports', 'activity_url', 'report_links',
     'Slide', 'Run', 'Para', 'Text', 'Rect', 'Image', 'Figure', 'Embed',
     'T', 'P', 'runs', 'eyebrow', 'pil_font', 'text_height',
     'W', 'H', 'PX', 'PT', 'FONTS',
