@@ -189,6 +189,7 @@ class Exercise:
     label: str = ''                 # 'EXERCISE 01'
     hint: str = ''
     rows: int = 8                   # editor height, in lines
+    size: int = CODE                # code size: CODE, or stepped down by layouts.exercise so the code fits the panel
     name: str = ''
     kind: str = 'exercise'
 
@@ -205,8 +206,8 @@ class Slide:
 
 def exercise_static(el):
     """The pptx/png rendering of an Exercise: the panel and the code, no controls."""
-    lines = el.code.split('\n')
-    body = [Para([Run(ln or ' ', 'mono', CODE, INK)], 'l', 1.45) for ln in lines]
+    from .syntax import code_runs
+    body = [Para(rs, 'l', 1.45) for rs in code_runs(el.code, el.size)]
     out = [Rect(el.x, el.y, el.w, el.h, PAPER, name=el.name or 'exercise-panel'),
            Text(el.x + 40, el.y + 32, el.w - 80, el.h - 64, body, 't', name='code')]
     if el.label:
@@ -374,9 +375,14 @@ html,body{background:#000B1C}
 .ex-status{font:500 22px/1 var(--font-m);letter-spacing:.08em;text-transform:uppercase;color:#5C6470}
 .ex.pass .ex-status{color:#00544C} .ex.fail .ex-status{color:#ED6D24} .ex.busy .ex-status{color:#5C6470}
 .ex.pass{border-color:#64C2C3} .ex.fail{border-color:#ED6D24}
-.ex-code{flex:1 1 auto;min-height:0;margin:12px 20px 0;padding:16px;border:0;resize:none;outline:0;
-  background:#fff;color:#000B1C;font:400 __CODE__px/1.45 var(--font-m);tab-size:4;white-space:pre;overflow:auto}
-.ex-code:focus{box-shadow:inset 0 0 0 2px #64C2C3}
+/* the editor: a transparent textarea over a coloured <pre> with the same metrics, so the
+   caret and the selection are the browser's own and the colours are ours */
+.ex-editor{position:relative;flex:1 1 auto;min-height:0;margin:12px 20px 0;background:#fff}
+.ex-editor:focus-within{box-shadow:inset 0 0 0 2px #64C2C3}
+.ex-hl,.ex-code{position:absolute;inset:0;box-sizing:border-box;margin:0;padding:16px;border:0;
+  font:400 1em/1.45 var(--font-m);tab-size:4;white-space:pre;overflow:auto;color:#000B1C}
+.ex-hl{pointer-events:none;overflow:hidden;background:transparent}
+.ex-code{background:transparent;color:transparent;caret-color:#000B1C;resize:none;outline:0}
 .ex-bar{display:flex;align-items:center;gap:12px;padding:12px 20px}
 .ex-bar button{font:500 24px/1 var(--font-m);letter-spacing:.08em;text-transform:uppercase;padding:10px 22px;
   border:0;cursor:pointer;background:#000B1C;color:#fff}
@@ -409,8 +415,8 @@ html,body{background:#000B1C}
   padding:28px 36px;font:500 24px/1.4 var(--font-m);letter-spacing:.08em;display:none}
 #pyload.on{display:block}
 
-@media print{.ex-bar,.ex-status,.ex-out,#pyc,#pyc-open,#pyload{display:none!important}
-  .ex-code{overflow:visible;height:auto}}
+@media print{.ex-bar,.ex-status,.ex-out,#pyc,#pyc-open,#pyload,.ex-code{display:none!important}
+  .ex-hl{overflow:visible}}
 
 /* ── reading view: the same slides, reflowed, for phones ── */
 .handout{display:none;background:#fff;color:#000B1C;max-width:44rem;margin:0 auto;padding:0 20px 96px;
@@ -447,7 +453,10 @@ body.ho{overflow:auto;height:auto;background:#fff}
 .ho-ex .ex{position:static!important;left:auto!important;top:auto!important;
   width:100%!important;height:auto!important;margin:14px 0}
 .ho-ex .ex-head{padding:12px 14px 0} .ho-ex .ex-label,.ho-ex .ex-status{font-size:11px}
-.ho-ex .ex-code{margin:10px 14px 0;padding:12px;min-height:9.5em;font-size:16px;line-height:1.5}
+.ho-ex .ex-editor{margin:10px 14px 0;min-height:9.5em;height:auto}
+.ho-ex .ex-editor{font-size:16px} .ho-ex .ex-hl,.ho-ex .ex-code{padding:12px;line-height:1.5}
+.ho-ex .ex-hl{position:static;visibility:hidden;overflow:visible}  /* sizes the box to the code; the absolute textarea paints over it */
+.ho-ex .ex-code{color:#000B1C;background:#fff}
 .ho-ex .ex-bar{padding:10px 14px;flex-wrap:wrap}
 .ho-ex .ex-bar button{font-size:12px;padding:11px 16px}
 .ho-ex .ex-hint{font-size:12px;margin-left:auto}
@@ -661,6 +670,7 @@ def html_slide(s, i, out_dir, assets_out, assets_rel):
 def html_exercise(el):
     """Editor + Run + output. The check travels as a data attribute; the runtime in
     vendor/pyodide-console.js does the executing."""
+    from .syntax import html as syntax_html
     eid = attr(el.eid or el.name or 'ex')
     attrs = f'class="ex" id="ex-{eid}" data-eid="{eid}" data-rows="{el.rows}"'
     if el.check:
@@ -671,7 +681,8 @@ def html_exercise(el):
     hint = f'<span class="ex-hint">{esc(el.hint)}</span>' if el.hint else ''
     return (f'<div {attrs} style="left:{el.x}px;top:{el.y}px;width:{el.w}px;height:{el.h}px">'
             f'{head}'
-            f'<textarea class="ex-code" spellcheck="false" autocapitalize="off" autocorrect="off">{esc(el.code)}</textarea>'
+            f'<div class="ex-editor" style="font-size:{el.size}px"><pre class="ex-hl" aria-hidden="true">{syntax_html(el.code)}\n</pre>'
+            f'<textarea class="ex-code" spellcheck="false" autocapitalize="off" autocorrect="off">{esc(el.code)}</textarea></div>'
             f'<div class="ex-bar"><button class="ex-run" type="button">Run</button>'
             f'<button class="ex-reset" type="button">Reset</button>'
             f'<button class="ex-send" type="button" title="Load this code into the Python console">&rsaquo;_</button>'
@@ -742,8 +753,11 @@ def handout_runs(para, role='p'):
 
 def handout_text(el, role):
     if role == 'code':
+        def span(r):
+            t = esc(r.text)
+            return f'<span style="color:{r.color}">{t}</span>' if r.color not in (INK, LIGHT_ON_INK) else t
         return '<pre class="ho-code">' + '\n'.join(
-            ''.join(esc(r.text) for r in p.runs) for p in el.paras) + '</pre>'
+            ''.join(span(r) for r in p.runs) for p in el.paras) + '</pre>'
     out, bullets = [], []
 
     def flush():

@@ -135,6 +135,20 @@ const wait = (fn, ms=3000) => new Promise((res, rej) => {
   pass.push(['console button loads the drill', input.value === ex2.querySelector('.ex-code').value.replace(/\s+$/, '')]);
   input.value = '';
 
+  // syntax colours: the <pre> behind the editor is painted at load and repainted on input
+  const hl1 = ex1.querySelector('.ex-hl');
+  pass.push(['editor overlay exists', !!hl1 && hl1.querySelector('span[style*="color"]') !== null]);
+  pass.push(['overlay text matches the editor', hl1.textContent.replace(/\n$/, '') === ex1.querySelector('.ex-code').value]);
+  ex1.querySelector('.ex-code').value = 'for i in range(3):  # loop';
+  ex1.querySelector('.ex-code').dispatchEvent(new w.Event('input', { bubbles: true }));
+  pass.push(['overlay repaints on input', hl1.textContent.startsWith('for i in range(3):  # loop')
+    && Array.from(hl1.querySelectorAll('span')).some(sp => sp.textContent === 'for')
+    && Array.from(hl1.querySelectorAll('span')).some(sp => sp.textContent === '# loop')]);
+  ex1.querySelector('.ex-reset').click();
+  pass.push(['reset repaints', hl1.textContent.replace(/\n$/, '') === 'a = "6"\nb = "6"\nprint(a + b)']);
+  pass.push(['console echo is coloured', $('.pyc-log').querySelector('.in span[style*="color"]') !== null
+    && $('.pyc-log').textContent.includes('>>> x * 2')]);
+
   // reveal keyboard released while typing
   kb = [];
   ex1.querySelector('.ex-code').dispatchEvent(new w.FocusEvent('focusin', { bubbles: true }));

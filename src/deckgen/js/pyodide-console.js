@@ -98,6 +98,44 @@
     });
   }
 
+  // ── syntax colours ─────────────────────────────────────────────────────────
+  // The twin of deckgen/syntax.py: same tokens, same colours, so the editor agrees with
+  // the printed panel. Python only here — the editor and the console never hold JS.
+  var KW = {};
+  ('False None True and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise return try while with yield match case').split(' ').forEach(function (k) { KW[k] = 1; });
+  var BI = {};
+  ('print len range int float str bool list dict set tuple type input sum min max abs round sorted reversed enumerate zip map filter any all open isinstance repr chr ord id hasattr getattr super object Exception ValueError TypeError KeyError IndexError ZeroDivisionError self').split(' ').forEach(function (k) { BI[k] = 1; });
+  var LIGHT = { kw: '#943890', bi: '#146AB5', fn: '#146AB5', str: '#00544C', num: '#ED6D24', com: '#5C6470' };
+  var DARK = { kw: '#C9A3CC', bi: '#8CC1F0', fn: '#8CC1F0', str: '#64C2C3', num: '#E38E5D', com: '#B3B7BE' };
+  var TOKEN = /(#.*)|([rbfuRBFU]{0,2}(?:"""[\s\S]*?(?:"""|$)|'''[\s\S]*?(?:'''|$)|"(?:\\.|[^"\\\n])*"?|'(?:\\.|[^'\\\n])*'?))|(\b(?:0[xXoObB][0-9a-fA-F_]+|\d[\d_]*(?:\.\d*)?(?:[eE][+-]?\d+)?)|\.\d+)|([A-Za-z_]\w*)|(\s+)|([\s\S])/g;
+
+  function escHtml(t) { return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+  // html of `code`, coloured; `theme` is LIGHT or DARK
+  function hl(code, theme) {
+    var out = '', prev = null, m;
+    TOKEN.lastIndex = 0;
+    while ((m = TOKEN.exec(code)) !== null) {
+      var t = m[0], kind = null;
+      if (m[1]) kind = 'com';
+      else if (m[2]) kind = 'str';
+      else if (m[3]) kind = 'num';
+      else if (m[4]) kind = KW[t] ? 'kw' : (prev === 'def' || prev === 'class') ? 'fn' : BI[t] ? 'bi' : null;
+      if (m[4]) prev = t; else if (!m[5]) prev = null;
+      out += kind ? '<span style="color:' + theme[kind] + '">' + escHtml(t) + '</span>' : escHtml(t);
+    }
+    return out;
+  }
+
+  // keep a <pre> behind a textarea painted with the textarea's text
+  function mirror(ta, pre) {
+    function paint() { pre.innerHTML = hl(ta.value, LIGHT) + '\n'; }
+    ta.addEventListener('input', paint);
+    ta.addEventListener('scroll', function () { pre.scrollTop = ta.scrollTop; pre.scrollLeft = ta.scrollLeft; });
+    paint();
+    return paint;
+  }
+
   // ── exercises ──────────────────────────────────────────────────────────────
   function wire(ex) {
     var eid = ex.dataset.eid;
@@ -109,6 +147,8 @@
     var original = ta.value;
     var saved = store()[eid];
     if (saved && typeof saved.code === 'string') ta.value = saved.code;
+    var pre = ex.querySelector('.ex-hl');
+    var paint = pre ? mirror(ta, pre) : function () {};
     if (saved && saved.ok === true) { ex.classList.add('pass'); if (status) status.textContent = 'passed'; }
 
     function setStatus(cls, text) {
@@ -151,6 +191,7 @@
 
     resetBtn.addEventListener('click', function () {
       ta.value = original;
+      paint();
       out.textContent = '';
       setStatus('', '');
       save(eid, { code: original, ok: null });
@@ -164,11 +205,12 @@
         var st = ta.selectionStart, en = ta.selectionEnd;
         ta.value = ta.value.slice(0, st) + '    ' + ta.value.slice(en);
         ta.selectionStart = ta.selectionEnd = st + 4;
+        paint();
       }
     });
     ta.addEventListener('input', function () { save(eid, { code: ta.value }); });
     ta.addEventListener('paste', function (e) {
-      if (pasteClean(ta, e)) save(eid, { code: ta.value });
+      if (pasteClean(ta, e)) { paint(); save(eid, { code: ta.value }); }
     });
 
     // ›_ — put this drill in the console, where they can take it a line at a time
@@ -195,7 +237,14 @@
     function echo(text, cls) {
       var span = document.createElement('span');
       if (cls) span.className = cls;
-      span.textContent = text + '\n';
+      if (cls === 'in') {
+        // '>>> ' and '... ' stay the prompt colour; the code after them gets its colours
+        span.innerHTML = text.split('\n').map(function (l) {
+          return escHtml(l.slice(0, 4)) + hl(l.slice(4), DARK);
+        }).join('\n') + '\n';
+      } else {
+        span.textContent = text + '\n';
+      }
       log.appendChild(span);
       log.scrollTop = log.scrollHeight;
     }

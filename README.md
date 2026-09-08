@@ -154,6 +154,22 @@ afterwards in the student's namespace, with the captured stdout bound to `_out`;
 Code everywhere — `exercise`, `code_panel`, `two_col`'s right panel, `question(example=…)`
 — is set at `deckgen.CODE` (30 px = 15 pt), one size across every layout.
 
+## Syntax colours
+
+Code on a slide is coloured — keywords, builtins, strings, numbers, comments — by a small
+lexer in `deckgen/syntax.py`, on every path at once: the html deck, the PowerPoint, the
+png previews and the reading view, because a Run carries its own colour. The live editor
+of an `exercise()` and the console's echo are painted by the same rules in JavaScript.
+
+- `code_slide`, `two_col` (mono panel), `code_panel`, `exercise` and `activity(panel=…)`
+  take `lang='py' | 'js' | None`. Python is the default; a `code_slide` with a live sketch
+  defaults to JavaScript; `None` keeps the panel plain, for a diagram drawn in text
+  (`two_col(…, lang=None)`). An activity panel is plain unless asked — a spec is not code.
+- Inline markup on a `code_panel` line still wins: a `{orange:…}` span stays orange and
+  the rest of the line gets its colours.
+- The lexer is forgiving on purpose: an unclosed string, a line ending in a colon, a
+  `___` placeholder — slide code is fragments, and it never raises.
+
 ## After the class: report links
 
 ClassPoint publishes every activity at `app.classpoint.io/activity/<activityId>` — a
@@ -286,6 +302,7 @@ node tests/wiring.test.js        # the DOM half, Pyodide stubbed
 node tests/handout.test.js       # the reading view: switching, and moving the widgets
 node tests/browser.test.js       # the whole thing: real Chromium, real Pyodide, real phone
 python tests/sketch.test.py      # live sketches: the twin, the geometry, a build with no still
+python tests/syntax.test.py      # the code colours: the lexer, and every path that carries them
 node tests/sketch.test.js        # live sketches in Chromium: mouse mapping, key relay, chip, print, snap
 ```
 
