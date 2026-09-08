@@ -12,6 +12,26 @@
 
   var KEY = 'deckgen.ex.' + location.pathname;   // one bucket per deck
   var pyodide = null, loading = null;
+  var consoleLoad = null;   // set by consoleSetup; used by each exercise's ›_ button
+
+  // Pasted code arrives with whatever the source used. CRLF confuses nothing but is
+  // noise, and a tab is a real hazard: Python accepts it, mixing it with the four
+  // spaces already in the box is an IndentationError the student cannot see.
+  function clean(text) { return text.replace(/\r\n?/g, '\n').replace(/\t/g, '    '); }
+
+  // Paste into a textarea at the caret, normalised. Returns false when the browser
+  // gave us no clipboard (jsdom, some mobile paths) so the default can stand.
+  function pasteClean(el, e) {
+    var cd = e.clipboardData || window.clipboardData;
+    if (!cd) return false;
+    var text = clean(cd.getData('text') || '');
+    if (!text) return false;
+    e.preventDefault();
+    var st = el.selectionStart, en = el.selectionEnd;
+    el.value = el.value.slice(0, st) + text + el.value.slice(en);
+    el.selectionStart = el.selectionEnd = st + text.length;
+    return true;
+  }
 
   // ── storage ────────────────────────────────────────────────────────────────
   function store() {
@@ -147,9 +167,22 @@
       }
     });
     ta.addEventListener('input', function () { save(eid, { code: ta.value }); });
+    ta.addEventListener('paste', function (e) {
+      if (pasteClean(ta, e)) save(eid, { code: ta.value });
+    });
+
+    // ›_ — put this drill in the console, where they can take it a line at a time
+    var sendBtn = ex.querySelector('.ex-send');
+    if (sendBtn) sendBtn.addEventListener('click', function () {
+      if (consoleLoad) consoleLoad(ta.value);
+    });
   }
 
   // ── the global console ─────────────────────────────────────────────────────
+  //
+  // The input is a <textarea>, not an <input>. An <input> silently drops newlines on
+  // paste, so a student pasting a loop out of a slide got it all on one line and Python
+  // answered with a SyntaxError about indentation they could not see.
   function consoleSetup() {
     var box = document.getElementById('pyc');
     if (!box) return;
@@ -167,40 +200,104 @@
       log.scrollTop = log.scrollHeight;
     }
 
+    // The box grows with what is in it, up to the CSS max-height; counting lines rather
+    // than measuring scrollHeight keeps this working in a headless DOM.
+    function grow() { input.rows = Math.min(14, input.value.split('\n').length); }
+
+    // Is this entry a finished thought, or is the student mid-block? A REPL's rule: an
+    // open bracket, a trailing colon or backslash, or a still-indented last line means
+    // more is coming — and a blank line ends it. Quotes and comments are stripped first
+    // so a colon or bracket inside them does not count.
+    function needsMore(src) {
+      if (/\n[ \t]*\n$/.test(src)) return false;
+      var s = src.replace(/'[^'\n]*'|"[^"\n]*"/g, "''").replace(/#.*$/gm, '');
+      var depth = 0;
+      for (var i = 0; i < s.length; i++) {
+        var c = s.charAt(i);
+        if (c === '(' || c === '[' || c === '{') depth++;
+        else if (c === ')' || c === ']' || c === '}') depth--;
+      }
+      if (depth > 0) return true;
+      var lines = s.replace(/[ \t]+$/, '').split('\n');
+      var last = lines[lines.length - 1];
+      if (/:[ \t]*$/.test(last) || /\\$/.test(last)) return true;
+      return lines.length > 1 && /^[ \t]+\S/.test(last);
+    }
+
+    // Newline that keeps the current indent, and adds one level after a colon.
+    function newline() {
+      var st = input.selectionStart, v = input.value;
+      var line = v.slice(0, st).split('\n').pop();
+      var pad = (line.match(/^[ \t]*/) || [''])[0];
+      if (/:[ \t]*$/.test(line)) pad += '    ';
+      var ins = '\n' + pad;
+      input.value = v.slice(0, st) + ins + v.slice(input.selectionEnd);
+      input.selectionStart = input.selectionEnd = st + ins.length;
+      grow();
+    }
+
+    function submit() {
+      var src = input.value.replace(/[ \t\n]+$/, '');
+      if (!src.trim()) { input.value = ''; grow(); return; }
+      history.push(src); hpos = history.length;
+      input.value = ''; grow();
+      echo(src.split('\n').map(function (l, i) { return (i ? '... ' : '>>> ') + l; }).join('\n'), 'in');
+      boot().then(function () {
+        var r = JSON.parse(evalFn(src));
+        if (r.out) echo(r.out.replace(/\n$/, ''));
+        if (r.err) echo(r.err, 'err');
+      }).catch(function (err) { echo(String(err.message || err), 'err'); });
+    }
+
     function toggle(on) {
       var want = on === undefined ? !box.classList.contains('on') : on;
       box.classList.toggle('on', want);
       if (want) { boot().then(function () { input.focus(); }); }
     }
 
+    // What an exercise's ›_ button calls: open, drop the drill in, caret at the end.
+    consoleLoad = function (code) {
+      toggle(true);
+      input.value = clean(code).replace(/[ \t\n]+$/, '');
+      grow();
+      input.selectionStart = input.selectionEnd = input.value.length;
+      input.focus();
+      log.scrollTop = log.scrollHeight;
+    };
+
     openBtn && openBtn.addEventListener('click', function () { toggle(); });
     clearBtn && clearBtn.addEventListener('click', function () { log.textContent = ''; });
 
+    input.addEventListener('input', grow);
+    input.addEventListener('paste', function (e) { if (pasteClean(input, e)) grow(); });
+
     input.addEventListener('keydown', function (e) {
+      var multi = input.value.indexOf('\n') !== -1;
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        var src = input.value;
-        if (!src.trim()) return;
-        history.push(src); hpos = history.length;
-        input.value = '';
-        echo('>>> ' + src, 'in');
-        boot().then(function () {
-          var r = JSON.parse(evalFn(src));
-          if (r.out) echo(r.out.replace(/\n$/, ''));
-          if (r.err) echo(r.err, 'err');
-        }).catch(function (err) { echo(String(err.message || err), 'err'); });
-      } else if (e.key === 'ArrowUp' && hpos > 0) {
-        e.preventDefault(); input.value = history[--hpos];
-      } else if (e.key === 'ArrowDown') {
+        if (input.value.trim() && needsMore(input.value)) newline(); else submit();
+      } else if (e.key === 'Enter') {
+        e.preventDefault(); newline();
+      } else if (e.key === 'Tab') {
+        e.preventDefault();
+        var st = input.selectionStart;
+        input.value = input.value.slice(0, st) + '    ' + input.value.slice(input.selectionEnd);
+        input.selectionStart = input.selectionEnd = st + 4;
+      } else if (e.key === 'ArrowUp' && hpos > 0 && (!multi || input.selectionStart === 0)) {
+        // while a block is in the box the arrows move the caret; history only takes over
+        // at its edges, or when the entry is a single line
+        e.preventDefault(); input.value = history[--hpos]; grow();
+      } else if (e.key === 'ArrowDown' && (!multi || input.selectionStart === input.value.length)) {
         e.preventDefault(); hpos = Math.min(hpos + 1, history.length);
         input.value = hpos === history.length ? '' : history[hpos];
+        grow();
       }
     });
 
     document.addEventListener('keydown', function (e) {
       if (e.key !== '`' || e.ctrlKey || e.metaKey || e.altKey) return;
       var t = e.target;
-      if (t && (t.tagName === 'TEXTAREA' || (t.tagName === 'INPUT' && t !== input))) return;
+      if (t && (t.tagName === 'INPUT' || (t.tagName === 'TEXTAREA' && t !== input))) return;
       e.preventDefault();
       toggle(t === input ? false : undefined);
     });

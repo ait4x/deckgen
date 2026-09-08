@@ -34,8 +34,11 @@ const fakePy = {
       if (code.includes('1/0'))             return JSON.stringify({out:'',err:'ZeroDivisionError: division by zero',ok:null,msg:''});
       return JSON.stringify({out:'',err:'',ok:null,msg:''});
     };
-    if (n === '_dg_eval') return (src) =>
-      JSON.stringify(src === 'x * 2' ? {out:'42\n',err:''} : {out:'',err:''});
+    if (n === '_dg_eval') return (src) => {
+      if (src === 'x * 2') return JSON.stringify({out:'42\n',err:''});
+      if (src.includes('total += r')) return JSON.stringify({out:'6\n',err:''});
+      return JSON.stringify({out:'',err:''});
+    };
   }},
 };
 w.PYODIDE_URL = 'http://x/pyodide/';  // the inline script that sets this does not run under runScripts:'outside-only'
@@ -94,6 +97,43 @@ const wait = (fn, ms=3000) => new Promise((res, rej) => {
   input.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
   await wait(() => $('.pyc-log').textContent.includes('42'));
   pass.push(['console echoes result', $('.pyc-log').textContent.includes('>>> x * 2') && $('.pyc-log').textContent.includes('42')]);
+
+  // a pasted block keeps its newlines and its indentation, and runs as one entry
+  input.value = 'rows = [1, 2, 3]\ntotal = 0\nfor r in rows:\n    total += r\ntotal';
+  input.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  await wait(() => $('.pyc-log').textContent.includes('6'));
+  pass.push(['block echoed with continuation prompts',
+    $('.pyc-log').textContent.includes('>>> rows = [1, 2, 3]') &&
+    $('.pyc-log').textContent.includes('...     total += r')]);
+  pass.push(['block is consumed', input.value === '']);
+
+  // enter on an unfinished block adds an indented line instead of running
+  const logLen = $('.pyc-log').textContent.length;
+  input.value = 'for i in range(3):';
+  input.selectionStart = input.selectionEnd = input.value.length;
+  input.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  pass.push(['open block continues, indented', input.value === 'for i in range(3):\n    ']);
+  pass.push(['open block did not run', $('.pyc-log').textContent.length === logLen]);
+
+  // a blank line closes it, the way a REPL does
+  input.value = 'for i in range(3):\n    pass\n\n';
+  input.selectionStart = input.selectionEnd = input.value.length;
+  input.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  pass.push(['blank line ends the block', input.value === '']);
+
+  // shift+enter always adds a line, even on a finished one
+  input.value = 'x = 1';
+  input.selectionStart = input.selectionEnd = input.value.length;
+  input.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, bubbles: true }));
+  pass.push(['shift+enter adds a line', input.value === 'x = 1\n']);
+  input.value = '';
+
+  // the exercise's console button loads the drill, indentation intact
+  $('#pyc').classList.remove('on');
+  ex2.querySelector('.ex-send').click();
+  pass.push(['console button opens the console', $('#pyc').classList.contains('on')]);
+  pass.push(['console button loads the drill', input.value === ex2.querySelector('.ex-code').value.replace(/\s+$/, '')]);
+  input.value = '';
 
   // reveal keyboard released while typing
   kb = [];

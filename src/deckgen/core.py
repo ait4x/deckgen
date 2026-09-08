@@ -191,6 +191,12 @@ def exercise_static(el):
 # ───────────────────────── inline markup ─────────────────────────
 # **bold**  ·  [text](url)  ·  {orange:text} {teal:text} {muted:text} {mono:text}
 _TOKEN = re.compile(r'(\*\*.+?\*\*|\[[^\]]+\]\([^)]+\)|\{[a-z]+:[^}]+\})')
+# Each token kind, anchored, for re-identifying a part after the split. Matching them by
+# startswith() instead used to mangle any line that merely began with '{' and held a
+# colon — a dict literal at the start of a line of code — into its own truncated tail.
+_BOLD = re.compile(r'\*\*(.+?)\*\*\Z', re.S)
+_LINK = re.compile(r'\[([^\]]+)\]\(([^)]+)\)\Z')
+_TAG = re.compile(r'\{([a-z]+):([^}]+)\}\Z')
 _COLORS = {'orange': ORANGE, 'teal': TEAL, 'muted': MUTED, 'violet': VIOLET, 'pink': PINK,
            'white': WHITE, 'ink': INK, 'green': GREEN, 'yellow': YELLOW, 'blue': BLUE}
 
@@ -202,13 +208,13 @@ def runs(text, font='body', size=36, color=INK, spc=0.0, caps=False, bold_font=N
     for part in _TOKEN.split(text):
         if not part:
             continue
-        if part.startswith('**') and part.endswith('**'):
-            out.append(Run(part[2:-2], bold_font, size, color, spc, caps, italic))
-        elif part.startswith('[') and '](' in part:
-            label, url = part[1:-1].split('](')
-            out.append(Run(label, font, size, color, spc, caps, italic, url=url))
-        elif part.startswith('{') and ':' in part:
-            key, val = part[1:-1].split(':', 1)
+        bold, link, tag = _BOLD.match(part), _LINK.match(part), _TAG.match(part)
+        if bold:
+            out.append(Run(bold.group(1), bold_font, size, color, spc, caps, italic))
+        elif link:
+            out.append(Run(link.group(1), font, size, color, spc, caps, italic, url=link.group(2)))
+        elif tag:
+            key, val = tag.group(1), tag.group(2)
             if key == 'mono':
                 out.append(Run(val, 'mono', size, color, spc, caps, italic))
             elif key == 'bold':
@@ -341,7 +347,7 @@ html,body{background:#000B1C}
 .ex-bar{display:flex;align-items:center;gap:12px;padding:12px 20px}
 .ex-bar button{font:500 24px/1 var(--font-m);letter-spacing:.08em;text-transform:uppercase;padding:10px 22px;
   border:0;cursor:pointer;background:#000B1C;color:#fff}
-.ex-bar button.ex-reset{background:transparent;color:#5C6470;padding:10px 8px}
+.ex-bar button.ex-reset,.ex-bar button.ex-send{background:transparent;color:#5C6470;padding:10px 8px}
 .ex-bar button:hover{background:#ED6D24;color:#fff}
 .ex-hint{font:400 22px/1.3 var(--font-d);color:#5C6470;margin-left:auto;text-align:right}
 .ex-out{margin:0 20px 20px;padding:0;max-height:34%;overflow:auto;white-space:pre-wrap;
@@ -356,7 +362,9 @@ html,body{background:#000B1C}
 #pyc.on{display:flex}
 #pyc .pyc-log{flex:1 1 auto;overflow:auto;padding:20px 28px;margin:0;white-space:pre-wrap;font:400 24px/1.5 var(--font-m)}
 #pyc .pyc-log .in{color:#64C2C3} #pyc .pyc-log .err{color:#ED6D24}
-#pyc .pyc-in{border:0;outline:0;background:#0A1526;color:#fff;padding:18px 28px;font:400 26px/1.4 var(--font-m)}
+#pyc .pyc-in{border:0;outline:0;resize:none;box-sizing:border-box;width:100%;flex:0 0 auto;
+  background:#0A1526;color:#fff;padding:18px 28px;font:400 26px/1.4 var(--font-m);
+  tab-size:4;white-space:pre;overflow:auto;max-height:22vh}
 #pyc .pyc-bar{display:flex;justify-content:space-between;align-items:center;padding:10px 28px;
   font:500 20px/1 var(--font-m);letter-spacing:.14em;text-transform:uppercase;color:#5C6470;border-bottom:1px solid #1F2832}
 #pyc .pyc-bar button{background:none;border:0;color:#5C6470;font:inherit;cursor:pointer}
@@ -423,8 +431,8 @@ body.ho #ho-open{display:none!important}
 PYODIDE_HTML = '''
 <button id="pyc-open" type="button" title="Python console (`)">Python ›_</button>
 <div id="pyload">Loading Python…</div>
-<div id="pyc"><div class="pyc-bar"><span>Python console — shift+enter for a new line, ` to close</span><button id="pyc-clear" type="button">clear</button></div>
-<pre class="pyc-log"></pre><input class="pyc-in" spellcheck="false" autocapitalize="off" autocorrect="off" placeholder=">>>"></div>
+<div id="pyc"><div class="pyc-bar"><span>Python console — enter runs, shift+enter adds a line, paste keeps its indentation, ` to close</span><button id="pyc-clear" type="button">clear</button></div>
+<pre class="pyc-log"></pre><textarea class="pyc-in" rows="1" spellcheck="false" autocapitalize="off" autocorrect="off" placeholder=">>>"></textarea></div>
 <script>window.PYODIDE_URL={pyodide_url!r};</script>
 <script src="../vendor/pyodide-console.js"></script>
 '''
@@ -555,7 +563,9 @@ def html_exercise(el):
             f'{head}'
             f'<textarea class="ex-code" spellcheck="false" autocapitalize="off" autocorrect="off">{esc(el.code)}</textarea>'
             f'<div class="ex-bar"><button class="ex-run" type="button">Run</button>'
-            f'<button class="ex-reset" type="button">Reset</button>{hint}</div>'
+            f'<button class="ex-reset" type="button">Reset</button>'
+            f'<button class="ex-send" type="button" title="Load this code into the Python console">&rsaquo;_</button>'
+            f'{hint}</div>'
             f'<pre class="ex-out"></pre></div>')
 
 
