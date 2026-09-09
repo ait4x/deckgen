@@ -321,3 +321,8 @@ Pyodide handing JS `null` across as a sentinel that is not `None`.
 passes there passes in the browser. `wiring.test.js` drives a built deck with a stubbed
 Pyodide and checks status classes, output, `localStorage`, reset, the console and the
 keyboard hand-off.
+
+Once a report is attached, the ClassPoint chip in the bottom corner of the html slide
+becomes a link to the activity page ("Short answer · see the answers"), and the reading
+view's ClassPoint line links too. Before that it is a badge saying what kind of activity
+the slide runs.

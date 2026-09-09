@@ -135,7 +135,11 @@ def main(site=True, export=True):
         out.mkdir(parents=True, exist_ok=True)
     if site:
         site_dir.mkdir(parents=True, exist_ok=True)
-    for src in proj.doc_sources:
+    # A [[publish]] entry may also name a markdown file anywhere under the repo root —
+    # a glossary, a reading list — not only the syllabus and lesson folders.
+    extra = [proj.root / e['src'] for e in proj.publish
+             if (proj.root / e['src']).is_file() and (proj.root / e['src']) not in proj.doc_sources]
+    for src in proj.doc_sources + extra:
         md = src.read_text(encoding='utf-8')
         made = []
         if export:
