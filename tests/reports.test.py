@@ -76,6 +76,8 @@ _tmp = pathlib.Path(tempfile.mkdtemp())
 page = html_slide(S[1], 1, _tmp, _tmp, 'assets')
 check('the chip is a link to the answers', f'<a class="cp" data-classpoint href="https://app.classpoint.io/activity/{IDS[0]}"' in page and 'see the answers' in page)
 from deckgen.core import CSS
+_acp = CSS.split('a.cp{',1)[1].split('}',1)[0]
+check('a linked chip stays absolutely positioned despite the theme\'s .reveal a rule', 'position:absolute' in _acp)
 check('a linked chip sizes to its label instead of wrapping', 'a.cp{' in CSS and 'white-space:nowrap' in CSS.split('a.cp{',1)[1].split('}',1)[0] and 'width:auto' in CSS.split('a.cp{',1)[1].split('}',1)[0])
 check('a slide without a report keeps the badge', '<div class="cp" data-classpoint>' in html_slide(deck()[1], 1, _tmp, _tmp, 'assets'))
 check('the longer eyebrow still fits on one line',
