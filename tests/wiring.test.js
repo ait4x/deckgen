@@ -32,6 +32,8 @@ const fakePy = {
       if (code.includes('a.copy()'))        return JSON.stringify({out:'[1, 2, 3]\n',err:'',ok:true,msg:''});
       if (code.includes('b = a'))           return JSON.stringify({out:'[1, 2, 3, 4]\n',err:'',ok:false,msg:'a still has the 4'});
       if (code.includes('1/0'))             return JSON.stringify({out:'',err:'ZeroDivisionError: division by zero',ok:null,msg:''});
+      if (code.includes('print(svg)'))      return JSON.stringify({out:'<svg viewBox="0 0 2 2"><path d="M0 0v1"/></svg>\n',err:'',ok:null,msg:''});
+      if (code.includes('print(evil)'))     return JSON.stringify({out:'<svg onload="x()"></svg>\n',err:'',ok:null,msg:''});
       return JSON.stringify({out:'',err:'',ok:null,msg:''});
     };
     if (n === '_dg_eval') return (src) => {
@@ -86,8 +88,20 @@ const wait = (fn, ms=3000) => new Promise((res, rej) => {
   pass.push(['saved code', saved['make-it-say-12'].code.includes('int(a)')]);
   pass.push(['saved result', saved['make-it-say-12'].ok === true]);
 
+  // an svg on stdout becomes a figure; a hostile one stays text; reset clears it
+  ex1.querySelector('.ex-code').value = 'svg = "<svg/>"\nprint(svg)';
+  ex1.querySelector('.ex-run').click();
+  await wait(() => ex1.classList.contains('ex-fig'));
+  pass.push(['svg output shown as a figure', !!ex1.querySelector('.ex-out .ex-figure svg')]);
+  pass.push(['figure status is ran', ex1.querySelector('.ex-status').textContent === 'ran']);
+  ex1.querySelector('.ex-code').value = 'evil = 1\nprint(evil)';
+  ex1.querySelector('.ex-run').click();
+  await wait(() => !ex1.classList.contains('ex-fig'));
+  pass.push(['svg with a handler stays text', !ex1.querySelector('.ex-out svg') && ex1.querySelector('.ex-out').textContent.includes('onload')]);
+
   // reset restores the starter
   ex1.querySelector('.ex-reset').click();
+  pass.push(['reset clears the figure', !ex1.classList.contains('ex-fig')]);
   pass.push(['reset restores', ex1.querySelector('.ex-code').value === 'a = "6"\nb = "6"\nprint(a + b)']);
   pass.push(['reset clears status', !ex1.classList.contains('pass')]);
 

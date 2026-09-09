@@ -157,9 +157,25 @@
       if (status) status.textContent = text || '';
     }
 
+    // A program that prints an <svg> gets a picture, not markup: the pane grows
+    // and the editor gives way. Same idea as week 1's sketch.py writing its own svg
+    // by hand — the drawing is text, and here the slide shows it.
+    function figure(text) {
+      var t = text.trim();
+      if (t.indexOf('<svg') !== 0 || t.lastIndexOf('</svg>') !== t.length - 6) return null;
+      if (/<script|on[a-z]+\s*=|javascript:/i.test(t)) return null;
+      var box = document.createElement('div');
+      box.className = 'ex-figure';
+      box.innerHTML = t;
+      return box.querySelector('svg') ? box : null;
+    }
+
     function show(res) {
       out.textContent = '';
-      if (res.out) out.appendChild(document.createTextNode(res.out));
+      var fig = res.out ? figure(res.out) : null;
+      ex.classList.toggle('ex-fig', !!fig);
+      if (fig) out.appendChild(fig);
+      else if (res.out) out.appendChild(document.createTextNode(res.out));
       if (res.err) {
         var e = document.createElement('span');
         e.className = 'err'; e.textContent = (res.out ? '\n' : '') + res.err;
