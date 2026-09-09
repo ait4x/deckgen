@@ -103,6 +103,7 @@ def attach_reports(slides, source, label: str = LABEL, quiet: bool = False) -> i
                       + (f" ({entry['withheld']})" if entry.get('withheld') else ''))
             continue
         url = activity_url(entry['activity'])
+        s.report = url          # the html chip and the reading view link to it
         for i, el in enumerate(s.els):
             if getattr(el, 'name', '') == EYEBROW_NAME:
                 text = ''.join(r.text for p in el.paras for r in p.runs)

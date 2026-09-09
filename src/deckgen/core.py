@@ -200,6 +200,7 @@ class Slide:
     els: list = field(default_factory=list)
     notes: str = ''
     cp: dict | None = None      # ClassPoint activity for build.py
+    report: str = ''            # after class: the public activity page, set by attach_reports
     title: str = ''             # for the outline / html title
     html_only: list = field(default_factory=list)  # elements only for html (e.g. live demos)
 
@@ -357,6 +358,7 @@ html,body{background:#000B1C}
 .embed iframe{width:100%;height:100%;border:0}
 .cp{position:absolute;left:1450px;top:908px;width:350px;height:92px;border:2px dashed #ED6D24;color:#ED6D24;font:500 22px/1 var(--font-m);letter-spacing:.14em;text-transform:uppercase;display:flex;align-items:center;justify-content:center;gap:12px}
 .cp b{width:12px;height:12px;border-radius:50%;background:#ED6D24;display:inline-block}
+a.cp{border-style:solid;text-decoration:none;cursor:pointer}a.cp:hover{background:#ED6D24;color:#fff}a.cp:hover b{background:#fff}
 .embed .print-only{display:none}
 .embed.sketch{background:#fff}
 .embed.sketch .live{position:absolute;right:0;bottom:0;max-width:100%;box-sizing:border-box;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:#000B1C;color:#fff;font:500 17px/1 var(--font-m);letter-spacing:.12em;text-transform:uppercase;padding:10px 14px;display:flex;align-items:center;gap:12px;pointer-events:none;opacity:.92;transition:opacity .5s}
@@ -664,7 +666,12 @@ def html_slide(s, i, out_dir, assets_out, assets_rel):
             parts.append(f'<div class="embed" style="left:{el.x}px;top:{el.y}px;width:{el.w}px;height:{el.h}px"><iframe data-src="https://www.youtube-nocookie.com/embed/{el.yt}?rel=0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>{thumb}</div>')
     if s.cp:
         label = {'word_cloud': 'Word cloud', 'multiple_choice': 'Multiple choice', 'short_answer': 'Short answer', 'image_upload': 'Image upload'}[s.cp['type']]
-        parts.append(f'<div class="cp" data-classpoint><b></b>{label}</div>')
+        # Before the class the chip says what kind of activity this is. After it, the
+        # same chip is the way to the answers — a link, not a badge that looks like one.
+        if s.report:
+            parts.append(f'<a class="cp" data-classpoint href="{attr(s.report)}" target="_blank" rel="noopener"><b></b>{label} · see the answers</a>')
+        else:
+            parts.append(f'<div class="cp" data-classpoint><b></b>{label}</div>')
     if s.notes:
         parts.append(f'<aside class="notes">{esc(s.notes)}</aside>')
     parts.append('</section>')
@@ -833,7 +840,10 @@ def handout_slide(s, i, assets_out, assets_rel):
         parts.append(f'<p class="ho-label">{esc(pending)}</p>')
     if s.cp:
         label = s.cp['type'].replace('_', ' ')
-        parts.append(f'<p class="ho-cp">ClassPoint &middot; {esc(label)} &mdash; answer on the projector</p>')
+        if s.report:
+            parts.append(f'<p class="ho-cp"><a href="{attr(s.report)}" target="_blank" rel="noopener">ClassPoint &middot; {esc(label)} &mdash; see what the room answered</a></p>')
+        else:
+            parts.append(f'<p class="ho-cp">ClassPoint &middot; {esc(label)} &mdash; answer on the projector</p>')
     parts.append('</article>')
     return '\n'.join(parts)
 

@@ -69,6 +69,13 @@ check('a full url passes through', report_links(['https://app.classpoint.io/acti
 html = ''.join(html_text(el))
 check('the html carries an anchor', f'href="https://app.classpoint.io/activity/{IDS[0]}"' in html)
 check('and opens it away from the deck', 'target="_blank"' in html)
+check('the slide remembers its report', S[1].report.endswith(IDS[0]) and S[3].report == '')
+import pathlib, tempfile
+from deckgen.core import html_slide
+_tmp = pathlib.Path(tempfile.mkdtemp())
+page = html_slide(S[1], 1, _tmp, _tmp, 'assets')
+check('the chip is a link to the answers', f'<a class="cp" data-classpoint href="https://app.classpoint.io/activity/{IDS[0]}"' in page and 'see the answers' in page)
+check('a slide without a report keeps the badge', '<div class="cp" data-classpoint>' in html_slide(deck()[1], 1, _tmp, _tmp, 'assets'))
 check('the longer eyebrow still fits on one line',
       text_height(el) <= el.h and sum(len(wrap_para(p, el.w)) for p in el.paras) == 1)
 
