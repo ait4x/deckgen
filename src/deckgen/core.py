@@ -392,6 +392,9 @@ html,body{background:#000B1C}
 .ex-out{margin:0 20px 20px;padding:0;max-height:34%;overflow:auto;white-space:pre-wrap;
   font:400 __CODE_SMALL__px/1.4 var(--font-m);color:#2A323D}
 .ex-out:empty{display:none}
+.ex.ex-fig .ex-out{max-height:none;overflow:hidden;text-align:center}
+.ex-figure svg{display:block;margin:0 auto;height:430px;max-width:100%;background:#fff;overflow:visible;padding:6px;box-sizing:border-box}
+.ex-hl,.ex-code,#pyc-log,#pyc-in{font-variant-ligatures:none}
 .ex-out .err{color:#E42519}
 .ex-out .msg{color:#00544C}
 
@@ -461,6 +464,7 @@ body.ho{overflow:auto;height:auto;background:#fff}
 .ho-ex .ex-bar button{font-size:12px;padding:11px 16px}
 .ho-ex .ex-hint{font-size:12px;margin-left:auto}
 .ho-ex .ex-out{margin:0 14px 14px;font-size:14px;max-height:none}
+.ho-ex .ex-figure svg{height:auto;width:100%}
 @media (max-width:900px){#ho-open{display:block}}
 /* already reading: the way out is the Deck view button in the sticky bar, and leaving
    this one up collides with the console button in the opposite corner */
