@@ -227,7 +227,8 @@ it reads the activity ids back out of ClassPoint after class.
 Any slide can run a p5.js sketch, live, in the html deck: `live(name, code, w, h, hint=…,
 extra=…, sound=False)` placed with `sketch_slide(…)` (full width), or as the media of
 `content(…, sketch=)`, `figure_slide(…, sketch=)`, `code_slide(…, sketch=)` and
-`activity(…, sketch=)`.
+`activity(…, sketch=)`. On a `code_slide` the code is editable and Run re-runs the
+sketch — see *Editable sketches* below.
 
 ```python
 from deckgen.layouts import code_slide, live
@@ -264,6 +265,46 @@ code_slide('03 · TEN POINTS', 'Ten points at random', TEN,
 - **`code_slide`** sets the code at `deckgen.CODE` when it fits the half-width panel, and steps
   down to `CODE_SMALL` or 22 px when it does not; a line too wide even then is an error, not a
   wrap.
+
+### Editable sketches
+
+A `code_slide` with a sketch is editable in the html deck: the code panel is an editor
+(the same box as an exercise, coloured as JavaScript), and **Run** re-runs the sketch on
+the right with whatever is in it — a student changes a number and sees the picture change
+without leaving the slide. **Reset** brings the slide's code back. What is typed is kept in
+`localStorage` per deck and re-run when the frame reloads; `ctrl+enter` runs; `edit=False`
+keeps the panel static.
+
+- The deck never evaluates the code itself. The sketch's page gets it by `postMessage`,
+  removes the running p5 instance, evaluates the code (plus `extra`) in one function scope
+  — so its top-level `let`s can be declared again on the next run — and installs the p5
+  hooks it defined. A syntax error, an error in `setup()` or anything thrown later comes
+  back into the box.
+- **Sliders.** In a sketch page `createSlider(min, max, value, step, label)` is p5's own
+  slider plus a label and its value in a bar under the canvas; moving it redraws a
+  `noLoop()` sketch. The fifth argument is deckgen's, and the p5 web editor ignores it, so
+  the code still runs there unchanged.
+
+```python
+SCHOTTER = '''let disorder;
+function setup() {
+  createCanvas(400, 700); noLoop();
+  disorder = createSlider(0, 2, 1, 0.01, 'disorder');   // the number
+}
+function draw() {
+  background(255);
+  for (let r = 0; r < 22; r++) {
+    let k = r / 21 * disorder.value();
+    ...
+  }
+}'''
+code_slide('06 · SCHOTTER', 'One rule. One number.', SCHOTTER, F.schotter(),
+           sketch=live('schotter', SCHOTTER, 400, 700, hint='drag the slider · click = new dice',
+                       extra='function mousePressed() { randomSeed(millis()); redraw(); }'))
+```
+
+The pptx, the png previews and the PDF keep the static panel and the still; the reading
+view keeps the code block and its link to the sketch page.
 
 ## On a phone
 

@@ -45,7 +45,9 @@ JS_BI = {'createCanvas', 'background', 'fill', 'noFill', 'stroke', 'noStroke', '
          'mouseY', 'pmouseX', 'pmouseY', 'mouseIsPressed', 'frameCount', 'PI', 'TWO_PI', 'HALF_PI',
          'text', 'textSize', 'textAlign', 'color', 'colorMode', 'rectMode', 'ellipseMode', 'console',
          'Math', 'document', 'window', 'setup', 'draw', 'keyPressed', 'mousePressed', 'mouseMoved',
-         'mouseDragged', 'key', 'keyCode', 'loadImage', 'image', 'createVector', 'millis', 'deltaTime'}
+         'mouseDragged', 'key', 'keyCode', 'loadImage', 'image', 'createVector', 'millis', 'deltaTime',
+         'createSlider', 'createButton', 'textFont', 'strokeCap', 'nf', 'radians', 'degrees', 'pow', 'exp', 'log',
+         'tan', 'atan', 'int', 'str', 'resizeCanvas', 'windowWidth', 'windowHeight', 'keyIsDown', 'lerpColor', 'quad'}
 
 LANGS = {
     'py': dict(kw=PY_KW, bi=PY_BI, defs={'def', 'class'}, line_comment='#', block=None,

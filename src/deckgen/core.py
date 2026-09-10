@@ -195,6 +195,25 @@ class Exercise:
 
 
 @dataclass
+class Editor:
+    """The code of a live sketch, editable in the html deck: a syntax-coloured box laid over
+    the static code panel, with Run and Reset. Run hands the box's contents to the sketch's
+    page, which swaps the running sketch for it (a syntax error or an exception comes back
+    into the box); Reset brings the slide's code back. What is typed is kept in localStorage
+    per deck, like an exercise's answer, and re-run when the frame reloads. The pptx, the png
+    and the PDF show the static panel underneath, so nothing changes for them."""
+    x: int; y: int; w: int; h: int
+    code: str                       # what starts in the box: the sketch's code as the slide shows it
+    sketch: str                     # name of the Sketch whose frame runs it
+    size: int = CODE
+    lang: str = 'js'
+    hint: str = 'ctrl+enter runs it'
+    eid: str = ''                   # stable id — keys the saved code in localStorage; the sketch's name by default
+    name: str = ''
+    kind: str = 'editor'
+
+
+@dataclass
 class Slide:
     bg: str = WHITE
     els: list = field(default_factory=list)
@@ -399,6 +418,13 @@ a.cp{position:absolute;border-style:solid;text-decoration:none;cursor:pointer;le
 .ex-hl,.ex-code,#pyc-log,#pyc-in{font-variant-ligatures:none}
 .ex-out .err{color:#E42519}
 .ex-out .msg{color:#00544C}
+/* ── editable sketches (vendor/sketch-editor.js): the exercise box, for the code of a live sketch ── */
+.ex-js .ex-editor{margin:12px 12px 0}
+.ex-js .ex-hl,.ex-js .ex-code{line-height:1.32;padding:14px 16px;tab-size:2}
+.ex-js .ex-bar{padding:8px 12px;gap:10px}
+.ex-js .ex-bar button{font-size:20px;padding:9px 16px}
+.ex-js .ex-status,.ex-js .ex-hint{font-size:18px}
+.ex-js .ex-out{margin:0 12px 10px;max-height:28%;font-size:18px;color:#E42519}
 
 /* the global console: backtick, or the button bottom-left */
 #pyc{position:fixed;left:0;right:0;bottom:0;height:44vh;background:#000B1C;color:#D3E7E8;z-index:60;
@@ -420,7 +446,7 @@ a.cp{position:absolute;border-style:solid;text-decoration:none;cursor:pointer;le
   padding:28px 36px;font:500 24px/1.4 var(--font-m);letter-spacing:.08em;display:none}
 #pyload.on{display:block}
 
-@media print{.ex-bar,.ex-status,.ex-out,#pyc,#pyc-open,#pyload,.ex-code{display:none!important}
+@media print{.ex-bar,.ex-status,.ex-out,#pyc,#pyc-open,#pyload,.ex-code,.ex-js{display:none!important}
   .ex-hl{overflow:visible}}
 
 /* ── reading view: the same slides, reflowed, for phones ── */
@@ -484,6 +510,9 @@ PYODIDE_HTML = '''
 <script>window.PYODIDE_URL={pyodide_url!r};</script>
 <script src="../vendor/pyodide-console.js"></script>
 '''
+
+# Injected only when a deck has an editable sketch (an Editor element).
+EDITOR_HTML = '<script src="../vendor/sketch-editor.js"></script>'
 
 HTML_TMPL = """<!doctype html>
 <html lang="en">
@@ -555,33 +584,93 @@ canvas{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display
 body.top{background:#F4F4F2}
 #bar{display:none;position:fixed;left:0;right:0;top:0;height:44px;background:#000B1C;color:#fff;font-size:12px;letter-spacing:.14em;text-transform:uppercase;align-items:center;padding:0 16px;gap:16px;z-index:9;white-space:nowrap;overflow:hidden}
 #bar b{color:#ED6D24;font-weight:500}#bar span{opacity:.6}#bar a{color:#fff;margin-left:auto;text-decoration:none;opacity:.6}
-body.top #bar{display:flex}body.top canvas{top:calc(50% + 22px)}
+body.top #bar{display:flex}
+#ctl{display:none;position:fixed;left:0;right:0;bottom:0;height:44px;box-sizing:border-box;align-items:center;gap:22px;padding:0 16px;background:#F4F4F2;border-top:1px solid #E1E1DE;font-size:14px;letter-spacing:.1em;text-transform:uppercase;color:#5C6470;white-space:nowrap;overflow:hidden;z-index:9}
+#ctl.on{display:flex}
+#ctl label{display:flex;align-items:center;gap:10px}
+#ctl input[type=range]{width:150px;margin:0;accent-color:#ED6D24}
+#ctl output{min-width:3.6em;color:#000B1C;font-weight:500}
 </style>
 <script src="../../vendor/p5/p5.min.js"></script>
 @@SOUND@@
 </head><body>
 <div id="bar"><b>@@COURSE@@</b> @@NAME@@ <span>@@HINT@@ · R restarts</span><a href="../">← the deck</a></div>
+<div id="ctl"></div>
 <script>
-@@CODE@@
-@@EXTRA@@
-</script>
-<script>
+// The sketch as the slide shows it, and the interaction the panel does not show (`extra`).
+// Both go through runSketch(), which is also what the deck's editable panel calls with new code.
+var DECKGEN = {name: @@NAME_JSON@@, code: @@CODE_JSON@@, extra: @@EXTRA_JSON@@, cw: @@CW@@, ch: @@CH@@};
 (function () {
   var top = (self === window.top) && !/[?&]snap/.test(location.search);   // on its own: a title bar; ?snap: none (deckgen snap)
   if (top) document.body.classList.add('top');
-  var CW = @@CW@@, CH = @@CH@@;
+  var ctl = document.getElementById('ctl');
+  var CW = DECKGEN.cw, CH = DECKGEN.ch;
   function fit() {                                   // scale by css size, not transform: p5 maps mouseX from scrollWidth
     var c = document.querySelector('canvas'); if (!c) return;
-    var pad = top ? 44 : 0, s = Math.min(innerWidth / CW, (innerHeight - pad) / CH);
-    var w = Math.round(CW * s) + 'px', h = Math.round(CH * s) + 'px';
+    var head = top ? 44 : 0, foot = ctl.classList.contains('on') ? 44 : 0;
+    var s = Math.min(innerWidth / CW, (innerHeight - head - foot) / CH);
+    var w = Math.round(CW * s) + 'px', h = Math.round(CH * s) + 'px', t = 'calc(50% + ' + (head - foot) / 2 + 'px)';
     if (c.style.width !== w) c.style.width = w;
     if (c.style.height !== h) c.style.height = h;
+    if (c.style.top !== t) c.style.top = t;
   }
   new MutationObserver(fit).observe(document.documentElement, {childList: true, subtree: true, attributes: true, attributeFilter: ['width', 'height', 'style']});
   addEventListener('resize', fit); fit();
+
+  // createSlider(min, max, value, step, label): p5's own slider, plus a label and its value in
+  // the bar under the canvas. The fifth argument is ours; the p5 web editor ignores it. Moving
+  // the slider redraws a noLoop() sketch, so a rule with a number in it needs no more code.
+  var origSlider = p5.prototype.createSlider;
+  p5.prototype.createSlider = function (min, max, value, step, label) {
+    var inst = this, s = origSlider.call(this, min, max, value, step);
+    var box = document.createElement('label'), name = document.createElement('span'), out = document.createElement('output');
+    name.textContent = label || '';
+    box.appendChild(name); box.appendChild(s.elt); box.appendChild(out);
+    ctl.appendChild(box); ctl.classList.add('on');
+    var dec = (String(step === undefined ? 1 : step).split('.')[1] || '').length;
+    function show() { out.textContent = Number(s.elt.value).toFixed(dec); }
+    s.elt.addEventListener('input', function () { show(); if (!inst._loop) inst.redraw(); });
+    show(); fit();
+    return s;
+  };
+
+  var HOOKS = ['preload', 'setup', 'draw', 'mousePressed', 'mouseReleased', 'mouseClicked', 'mouseMoved', 'mouseDragged',
+               'mouseWheel', 'doubleClicked', 'keyPressed', 'keyReleased', 'keyTyped', 'touchStarted', 'touchMoved',
+               'touchEnded', 'windowResized', 'deviceMoved', 'deviceTurned', 'deviceShaken'];
+  function post(m) { if (self !== window.top) parent.postMessage(m, '*'); }
+
+  // Run `code` (and extra) as the sketch: the previous instance and its controls go; the code
+  // is evaluated in one function scope, so its top-level lets can be declared again on the
+  // next run; the p5 hooks it defines become the globals p5 looks for. A syntax error, or an
+  // error in setup(), goes back to the deck; so does anything thrown later, by the handler below.
+  function runSketch(code) {
+    try { if (window.p5 && p5.instance) p5.instance.remove(); } catch (e) { /* a half-built sketch */ }
+    ctl.textContent = ''; ctl.classList.remove('on');
+    HOOKS.forEach(function (h) { window[h] = undefined; });
+    var hooks;
+    try {
+      hooks = new Function(code + '\\n' + DECKGEN.extra + '\\n;return {' +
+        HOOKS.map(function (h) { return h + ": typeof " + h + " === 'function' ? " + h + " : undefined"; }).join(',') + '};')();
+    } catch (e) { post({deckgen: 'error', name: DECKGEN.name, message: String(e && e.message || e)}); return false; }
+    HOOKS.forEach(function (h) { if (typeof hooks[h] === 'function') window[h] = hooks[h]; });
+    try { new p5(); } catch (e) { post({deckgen: 'error', name: DECKGEN.name, message: String(e && e.message || e)}); return false; }
+    fit();
+    post({deckgen: 'ran', name: DECKGEN.name});
+    return true;
+  }
+  window.runSketch = runSketch;
+  addEventListener('error', function (e) { post({deckgen: 'error', name: DECKGEN.name, message: String(e.message || e)}); });
+  addEventListener('message', function (e) {
+    var d = e.data;
+    if (d && d.deckgen === 'run' && typeof d.code === 'string') runSketch(d.code);
+  });
+  runSketch(DECKGEN.code);                      // p5 is loaded (head); its own load-time start sees the instance and stands down
+  post({deckgen: 'ready', name: DECKGEN.name});
+
   var NAV = {ArrowLeft: 1, ArrowRight: 1, ArrowUp: 1, ArrowDown: 1, PageUp: 1, PageDown: 1, Home: 1, End: 1, Escape: 1, ' ': 1, s: 1, S: 1, o: 1, O: 1, f: 1, F: 1};
   addEventListener('keydown', function (e) {
     if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;   // the sketch used the key (keyPressed returned false)
+    if (e.target && e.target.tagName === 'INPUT') return;                    // a slider has the keys
     if (e.key === 'r' || e.key === 'R') { location.reload(); return; }
     if (NAV[e.key] && !top) { parent.postMessage({deckgen: 'key', key: e.key, shift: e.shiftKey}, '*'); e.preventDefault(); }
   });
@@ -656,6 +745,8 @@ def html_slide(s, i, out_dir, assets_out, assets_rel):
             parts.append(f'<div class="fig" style="left:{el.x}px;top:{el.y}px;width:{el.w}px;height:{el.h}px">{el.svg}</div>')
         elif el.kind == 'exercise':
             parts.append(html_exercise(el))
+        elif el.kind == 'editor':
+            parts.append(html_editor(el))
         elif el.kind == 'sketch':
             write_sketch_page(el, out_dir)
             hint = ' · ' + esc(el.hint) if el.hint else ''
@@ -698,6 +789,24 @@ def html_exercise(el):
             f'<button class="ex-reset" type="button">Reset</button>'
             f'<button class="ex-send" type="button" title="Load this code into the Python console">&rsaquo;_</button>'
             f'{hint}</div>'
+            f'<pre class="ex-out"></pre></div>')
+
+
+def html_editor(el):
+    """The editable code of a live sketch: the exercise's editor (a coloured <pre> under a
+    transparent textarea), Run and Reset in the bar, the sketch's errors below. It lies over
+    the static panel, which print and the reading view keep; vendor/sketch-editor.js wires it
+    to the sketch's frame on the same slide."""
+    from .syntax import html as syntax_html
+    eid = attr(el.eid or el.sketch)
+    hint = f'<span class="ex-hint">{esc(el.hint)}</span>' if el.hint else ''
+    return (f'<div class="ex ex-js" id="ex-{eid}" data-eid="{eid}" data-sketch="{attr(el.sketch)}" '
+            f'style="left:{el.x}px;top:{el.y}px;width:{el.w}px;height:{el.h}px">'
+            f'<div class="ex-editor" style="font-size:{el.size}px"><pre class="ex-hl" aria-hidden="true">{syntax_html(el.code, el.lang)}\n</pre>'
+            f'<textarea class="ex-code" spellcheck="false" autocapitalize="off" autocorrect="off">{esc(el.code)}</textarea></div>'
+            f'<div class="ex-bar"><button class="ex-run" type="button">Run</button>'
+            f'<button class="ex-reset" type="button">Reset</button>'
+            f'<span class="ex-status" aria-live="polite"></span>{hint}</div>'
             f'<pre class="ex-out"></pre></div>')
 
 
@@ -887,6 +996,9 @@ def build_html(deck, out_dir: Path):
     if live:
         url = deck.get('pyodide_url') or PYODIDE_CDN.format(v=deck.get('pyodide_version', PYODIDE_VERSION))
         pyodide = PYODIDE_HTML.format(pyodide_url=url)
+    editors = any(el.kind == 'editor' for sl in deck['slides'] for el in sl.els + sl.html_only)
+    if editors:
+        pyodide += '\n' + EDITOR_HTML
     css = CSS.replace('__CODE__', str(CODE)).replace('__CODE_SMALL__', str(CODE_SMALL))
     html = HTML_TMPL.format(title=esc(deck['title']), css=css, slides=slides,
                             handout=handout, pyodide=pyodide)
@@ -898,6 +1010,8 @@ def build_html(deck, out_dir: Path):
     if live:
         for f in ('pyodide-console.js', 'pyodide-runtime.py'):
             shutil.copy(JS_DIR / f, vendor / f)
+    if editors:
+        shutil.copy(JS_DIR / 'sketch-editor.js', vendor / 'sketch-editor.js')
     shutil.copy(JS_DIR / 'handout.js', vendor / 'handout.js')   # every deck gets it
     return out_dir / 'index.html'
 
@@ -1190,14 +1304,22 @@ def contact_sheet(files, out, cols=4, scale=0.5):
 
 
 # ───────────────────────── live sketches ─────────────────────────
+def js_str(text):
+    """A string literal for a <script>: JSON, with the one sequence that would end the tag early escaped."""
+    return json.dumps(text or '').replace('</', '<\\/')
+
+
 def write_sketch_page(el, out_dir: Path):
-    """The standalone page of a live sketch: <deck>/sketches/<name>.html."""
+    """The standalone page of a live sketch: <deck>/sketches/<name>.html. The code and the extra
+    travel as string literals and run through the page's runSketch(), so the deck's editable
+    panel can run new code the same way."""
     sk = out_dir / 'sketches'
     sk.mkdir(parents=True, exist_ok=True)
     sound = '<script src="../../vendor/p5/p5.sound.min.js"></script>' if el.sound else ''
     page = (SKETCH_TMPL.replace('@@NAME@@', esc(el.name)).replace('@@COURSE@@', esc(current().code))
             .replace('@@HINT@@', esc(el.hint or 'live p5.js')).replace('@@SOUND@@', sound)
-            .replace('@@EXTRA@@', el.extra or '').replace('@@CODE@@', el.code)
+            .replace('@@NAME_JSON@@', js_str(el.name)).replace('@@CODE_JSON@@', js_str(el.code))
+            .replace('@@EXTRA_JSON@@', js_str(el.extra))
             .replace('@@CW@@', str(el.cw)).replace('@@CH@@', str(el.ch)))
     path = sk / f'{el.name}.html'
     path.write_text(page, encoding='utf-8')
