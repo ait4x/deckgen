@@ -28,7 +28,7 @@ from .project import Project, configure, current, find_config
 from .reports import attach_reports, activity_url, links as report_links
 from .core import (
     # element model
-    Slide, Run, Para, Text, Rect, Image, Figure, Embed, Sketch, Exercise,
+    Slide, Run, Para, Text, Rect, Image, Figure, Embed, Sketch, Exercise, Editor,
     # authoring helpers
     T, P, runs, eyebrow, pil_font, text_height,
     # geometry, and the one size for code

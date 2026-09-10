@@ -15,7 +15,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from .core import (Slide, Text, Para, Run, Rect, Image, Figure, Embed, Sketch, Exercise, T, P, runs, eyebrow, CODE, CODE_SMALL,
+from .core import (Slide, Text, Para, Run, Rect, Image, Figure, Embed, Sketch, Exercise, Editor, T, P, runs, eyebrow, CODE, CODE_SMALL,
                      text_height, run_width, twin_png,
                      INK, WHITE, PAPER, GRAY, TEAL, TXT, MUTED, LINE, LINE_STRONG, ORANGE, VIOLET, PINK, YELLOW, GREEN, BLUE,
                      MUTED_ON_INK, LIGHT_ON_INK, YELLOWS, VIOLETS, TEALS, ORANGES, PINKS)
@@ -465,10 +465,12 @@ def _code_size(lines, width, height, lh=1.32):
     raise ValueError(f'code does not fit a {width} x {height} px panel even at 22px ({len(lines)} lines; widest: {wide!r})')
 
 
-def code_slide(eyebrow_text, title_text, code, figure=None, notes='', bg=WHITE, caption=None, code_size=None, sketch=None, title_size=64, cp=None, lang=None):
+def code_slide(eyebrow_text, title_text, code, figure=None, notes='', bg=WHITE, caption=None, code_size=None, sketch=None, title_size=64, cp=None, lang=None, edit=True, hint=None):
     """Code on the left (a paper panel), the picture it makes on the right.
     sketch: live(...) or (name, js, canvas_w, canvas_h): in the html deck a live p5.js run of the code covers the
     figure; with no figure, the still made by `deckgen snap` stands in for it in the pptx and the PDF.
+    edit: with a sketch, the html deck lays an editor over the panel — Run re-runs the sketch with what is in the
+    box, Reset brings the slide's code back; edit=False keeps the panel static. hint: the editor's bar text.
     code_size: CODE when the code fits the half-width panel, else the largest of CODE_SMALL and 22 that does.
     lang: 'py' or 'js' for the colours; by default the code of a live sketch is JavaScript and anything else Python."""
     t, b, m = palette(bg)
@@ -476,12 +478,19 @@ def code_slide(eyebrow_text, title_text, code, figure=None, notes='', bg=WHITE, 
     s.els += [eyebrow(M, 96, eyebrow_text, m), T(M, TITLE_Y, CW, 100, title_text, 'xbold', title_size, t, lh=0.95, spc=-0.03)]
     top = 296
     lines = code.splitlines() if isinstance(code, str) else list(code)
-    code_size = code_size or _code_size(lines, 744, 980 - top - 48)
+    editable = bool(sketch) and edit
+    # the editor's bar takes 60 px of the panel, so editable code is sized for what is left
+    code_size = code_size or _code_size(lines, 744, 980 - top - (108 if editable else 48))
+    lang = lang or ('js' if sketch else 'py')
     s.els += [Rect(M, top, 800, 980 - top, PAPER),
-              Text(M + 28, top + 24, 744, 980 - top - 48, code_paras(lines, code_size, lang=lang or ('js' if sketch else 'py')), 't', name='code')]
+              Text(M + 28, top + 24, 744, 980 - top - 48, code_paras(lines, code_size, lang=lang), 't', name='code')]
     box = (1000, top, 800, (896 if caption else 980) - top)
     if sketch:
         place_sketch(s, sketch, box, figure)
+        if editable:
+            sk = s.html_only[-1]          # place_sketch appended it
+            s.html_only.append(Editor(M, top, 800, 980 - top, '\n'.join(lines), sk.name, size=code_size, lang=lang,
+                                      hint='ctrl+enter runs it' if hint is None else hint, eid=sk.name))
     else:
         svg, png = figure
         s.els.append(_fit_figure(box, svg, png))
