@@ -39,7 +39,8 @@ deckgen build --pptx
 ```
 deckgen.toml           the course: code, name, year, footer, which decks, what to publish
 deck/week01.py         the slides as one Python spec — edit here, every output updates
-deck/assets/           images (deck/assets/generated/ is built, git-ignored; deck/assets/sketches/
+deck/assets/           images: the site gets them as jpeg, at most 1920 px, and an animated gif or webp
+                       as it is (deck/assets/generated/ is built, git-ignored; deck/assets/sketches/
                        holds the stills of the live sketches, made by `deckgen snap`, committed)
 deck/figures.py        course-specific drawn figures, on deckgen.figures.Canvas (optional)
 syllabus/*.md          published if listed under [[publish]]

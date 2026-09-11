@@ -958,13 +958,19 @@ def handout_slide(s, i, assets_out, assets_rel):
 
 
 def copy_asset(src, assets_out):
-    """Copy an image into the html assets dir (downscaled to <= 1920px, jpeg where possible). None if it is missing."""
+    """Copy an image into the html assets dir (downscaled to <= 1920px, jpeg where possible; an animated
+    gif or webp is copied as it is, every frame kept). None if it is missing."""
     from PIL import Image as PImage
     p = current().resolve_asset(src)
     if not p.exists():
         return None   # the still of a sketch not made yet; the callers show a labelled box instead
     assets_out.mkdir(parents=True, exist_ok=True)
     im = PImage.open(p)
+    if getattr(im, 'is_animated', False):   # re-encoding would keep one frame of it
+        dst = assets_out / p.name
+        if not dst.exists():
+            shutil.copyfile(p, dst)
+        return p.name
     name = p.stem + ('.png' if im.mode in ('RGBA', 'LA', 'P') and p.suffix.lower() == '.png' and _has_alpha(im) else '.jpg')
     dst = assets_out / name
     if not dst.exists():
