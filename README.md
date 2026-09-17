@@ -84,6 +84,7 @@ Layouts: `title` `agenda` `section` `statement` `quote` `content` `cards` `quest
 `team_band` `two_col` `code_panel` `code_slide` `figure_slide` `sketch_slide` `exercise`
 `end`. Inline markup in any string: `**bold**`,
 `[text](url)`, `{orange:…}` `{teal:…}` `{muted:…}` `{mono:…}` and the other palette names.
+`image_full(…, url=…)` makes the whole picture a link, in the html, the handout and the pptx.
 
 ClassPoint activities come from `question(kind, …)` — `word_cloud`, `short_answer`,
 `image_upload`, or `multiple_choice` when you pass `choices=[…]` — or from an explicit

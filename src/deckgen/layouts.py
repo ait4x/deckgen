@@ -349,12 +349,13 @@ def question(kind, question_text, choices=None, hint=None, notes='', eyebrow_tex
     return s
 
 
-def image_full(src, eyebrow_text, caption, notes='', fit='cover', bg=INK, n=None):
+def image_full(src, eyebrow_text, caption, notes='', fit='cover', bg=INK, n=None, url=''):
+    """url: the picture itself is a link — html, handout and pptx alike."""
     s = _slide(bg, notes, title=caption[:60], chrome=False)
     if fit == 'cover':
-        s.els.append(Image(0, 0, 1920, 960, src, 'cover'))
+        s.els.append(Image(0, 0, 1920, 960, src, 'cover', url=url))
     else:
-        s.els.append(Image(M, 40, CW, 880, src, 'contain'))
+        s.els.append(Image(M, 40, CW, 880, src, 'contain', url=url))
     s.els += [Rect(0, 960, 1920, 120, INK),
               eyebrow(M, 972, eyebrow_text, MUTED_ON_INK, size=22),
               T(M, 1006, 1560, 64, caption, 'body', 24, WHITE, lh=1.2),

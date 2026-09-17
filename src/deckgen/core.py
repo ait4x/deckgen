@@ -120,6 +120,7 @@ class Image:
     fit: str = 'cover'      # cover | contain
     name: str = ''
     placeholder: str = ''   # drawn instead when the file is missing (the still of a sketch not made yet)
+    url: str = ''           # the whole picture is a link: <a> in html, click action in pptx
     kind: str = 'image'
 
 
@@ -740,7 +741,10 @@ def html_slide(s, i, out_dir, assets_out, assets_rel):
             if src is None:   # the still of a sketch not made yet: the live frame covers the spot on screen, print shows the label
                 parts.append(f'<div class="el" style="left:{el.x}px;top:{el.y}px;width:{el.w}px;height:{el.h}px;background:{PAPER};align-items:center;justify-content:center;font:500 22px/1 var(--font-m);color:{MUTED};letter-spacing:.14em;text-transform:uppercase">{esc(el.placeholder or el.src)}</div>')
             else:
-                parts.append(f'<div class="img" style="left:{el.x}px;top:{el.y}px;width:{el.w}px;height:{el.h}px"><img src="{assets_rel}/{src}" alt="" style="object-fit:{fit}"></div>')
+                img = f'<img src="{assets_rel}/{src}" alt="" style="object-fit:{fit}">'
+                if el.url:
+                    img = f'<a href="{attr(el.url)}" target="_blank" rel="noopener" style="display:block;width:100%;height:100%">{img}</a>'
+                parts.append(f'<div class="img" style="left:{el.x}px;top:{el.y}px;width:{el.w}px;height:{el.h}px">{img}</div>')
         elif el.kind == 'figure':
             parts.append(f'<div class="fig" style="left:{el.x}px;top:{el.y}px;width:{el.w}px;height:{el.h}px">{el.svg}</div>')
         elif el.kind == 'exercise':
@@ -932,7 +936,8 @@ def handout_slide(s, i, assets_out, assets_rel):
         elif el.kind == 'image':
             src = copy_asset(el.src, assets_out)
             if src is not None:          # the still of a sketch not made yet: its link below stands in
-                parts.append(f'<img src="{assets_rel}/{src}" alt="">')
+                img = f'<img src="{assets_rel}/{src}" alt="">'
+                parts.append(f'<a href="{attr(el.url)}">{img}</a>' if el.url else img)
         elif el.kind == 'figure':
             parts.append(f'<div class="ho-fig">{el.svg}</div>')
         elif el.kind == 'embed':
@@ -1132,6 +1137,8 @@ def build_pptx(deck, out_path: Path, footer: str):
                 pic.crop_top = pic.crop_bottom = round((1 - keep) / 2, 4)
         if el.name:
             pic.name = el.name
+        if getattr(el, 'url', ''):
+            pic.click_action.hyperlink.address = el.url
         return pic
 
     for i, s in enumerate(deck['slides'], start=1):
