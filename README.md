@@ -335,11 +335,40 @@ except where that would cost a slide its heading.
 It is a reading and exercise surface, not a reproduction of the deck: decorative rules and
 panels are dropped, and images keep their place but not their composition.
 
+## Local Presenter Window Lifecycle
+
+The optional `deckgen[presenter]` extra provides `deckgen.presenter_lifecycle` for
+desktop launcher integrations. `select_deck(project)` picks the last module in
+`[course].decks` in `deckgen.toml`, so advancing the course does not require editing
+its desktop launcher. An explicit module name can select an earlier lesson.
+Selection does not execute deck modules, and a missing latest module fails visibly.
+
+`WindowMonitor(browser_url, presenter_url, end_session, notify_failure)` watches
+the operator page through Chromium's loopback remote-debugging endpoint. Awaiting
+`run()` completes after the operator closes and `end_session()` confirms cleanup.
+The caller can then stop its server, close audience windows and release its sleep
+inhibitor. Reloading the operator and closing audience pages keep the session.
+Transient browser-control failures have a grace period; a browser crash also
+triggers cleanup. If cleanup rejects or times out, the monitor notifies the user
+and stays available for reopening and retrying. Notification failure does not
+discard the session.
+
+`reuse_presenter(browser_url, presenter_url)` activates an existing operator page
+so repeated launcher clicks do not create duplicate control windows. Use a
+dedicated Chromium profile and keep remote debugging bound to loopback.
+It returns `False` only for confirmed operator absence; browser-control failures
+raise `RuntimeError` and must not trigger another window.
+
+These helpers do not start a remote class or implement a ClassPoint protocol.
+The application's `end_session` callback owns remote cleanup. A complete
+`deckgen present` command remains separate integration work.
+
 ## Tests
 
 ```bash
 python tests/runtime.test.py     # the Python half, against the real interpreter
 python tests/reports.test.py     # report links: the mapping contract, and the anchor
+python tests/presenter.test.py   # window ownership and latest-deck selection; needs deckgen[presenter]
 npm install --no-save jsdom
 node tests/wiring.test.js        # the DOM half, Pyodide stubbed
 node tests/handout.test.js       # the reading view: switching, and moving the widgets
